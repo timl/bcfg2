@@ -14,6 +14,8 @@ import Bcfg2.Server.FileMonitor
 import Bcfg2.Server.Plugin
 from Bcfg2.version import Bcfg2VersionInfo
 
+from django.db import models
+
 def locked(fd):
     """Aquire a lock on a file"""
     try:
@@ -229,9 +231,15 @@ class MetadataQuery(object):
         return [self.by_name(name) for name in self.all_clients()]
 
 
+class MetadataClient(models.Model,
+                     Bcfg2.Server.Plugin.PluginDatabaseModel):
+    hostname = models.CharField(max_length=255)
+
+
 class Metadata(Bcfg2.Server.Plugin.Plugin,
                Bcfg2.Server.Plugin.Metadata,
-               Bcfg2.Server.Plugin.Statistics):
+               Bcfg2.Server.Plugin.Statistics,
+               Bcfg2.Server.Plugin.DatabaseBacked):
     """This class contains data for bcfg2 server metadata."""
     __author__ = 'bcfg-dev@mcs.anl.gov'
     name = "Metadata"
@@ -242,6 +250,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         Bcfg2.Server.Plugin.Metadata.__init__(self)
         Bcfg2.Server.Plugin.Statistics.__init__(self)
         self.states = dict()
+        Bcfg2.Server.Plugin.DatabaseBacked.__init__(self)
         if watch_clients:
             for fname in ["groups.xml", "clients.xml"]:
                 self.states[fname] = False

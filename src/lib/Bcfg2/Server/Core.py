@@ -95,8 +95,17 @@ class BaseCore(object):
         # Create an event to signal worker threads to shutdown
         self.terminate = threading.Event()
 
-        if '' in setup['plugins']:
-            setup['plugins'].remove('')
+        # generate Django ORM settings.  this must be done _before_ we
+        # load plugins
+        try:
+            import Bcfg2.settings
+        except ImportError:
+            err = sys.exc_info()[1]
+            raise CoreInitError("Unable to connect to database: %s" % err)
+        Bcfg2.Server.settings.read_config(cfile=cfile, repo=repo)
+
+        if '' in plugins:
+            plugins.remove('')
 
         for plugin in setup['plugins']:
             if not plugin in self.plugins:

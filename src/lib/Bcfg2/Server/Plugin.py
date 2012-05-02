@@ -102,6 +102,16 @@ class Debuggable(object):
             self.logger.error(message)
 
 
+class DatabaseBacked(object):
+    def __init__(self):
+        pass
+
+
+class PluginDatabaseModel(object):
+    class Meta:
+        app_label = "Server"
+
+
 class Plugin(Debuggable):
     """This is the base class for all Bcfg2 Server plugins.
     Several attributes must be defined in the subclass:

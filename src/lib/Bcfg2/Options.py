@@ -224,6 +224,7 @@ def get_bool(s):
         return False
     else:
         raise ValueError
+        
 
 """
 Options:
@@ -423,6 +424,32 @@ SERVER_BACKEND = \
     Option('Server Backend',
            default='best',
            cf=('server', 'backend'))
+
+# database options
+DB_ENGINE = \
+    Option('Database engine',
+           default='sqlite3',
+           cf=('database', 'engine'))
+DB_NAME = \
+    Option('Database name',
+           default=os.path.join(SERVER_REPOSITORY.default, "bcfg2.sqlite"),
+           cf=('database', 'name'))
+DB_USER = \
+    Option('Database username',
+           default=None,
+           cf=('database', 'user'))
+DB_PASSWORD = \
+    Option('Database password',
+           default=None,
+           cf=('database', 'password'))
+DB_HOST = \
+    Option('Database host',
+           default='localhost',
+           cf=('database', 'host'))
+DB_PORT = \
+    Option('Database port',
+           default='',
+           cf=('database', 'port'),)
 
 # Client options
 CLIENT_KEY = \
