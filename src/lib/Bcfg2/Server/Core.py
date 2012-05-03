@@ -1,5 +1,6 @@
 """Bcfg2.Server.Core provides the runtime support for Bcfg2 modules."""
 
+import os
 import atexit
 import logging
 import select
@@ -9,6 +10,11 @@ import time
 import inspect
 import lxml.etree
 from traceback import format_exc
+
+# this must be set before we import the Metadata plugin
+os.environ['DJANGO_SETTINGS_MODULE'] = 'Bcfg2.settings'
+
+import Bcfg2.settings
 import Bcfg2.Server
 import Bcfg2.Logger
 import Bcfg2.Server.FileMonitor
@@ -97,12 +103,7 @@ class BaseCore(object):
 
         # generate Django ORM settings.  this must be done _before_ we
         # load plugins
-        try:
-            import Bcfg2.settings
-        except ImportError:
-            err = sys.exc_info()[1]
-            raise CoreInitError("Unable to connect to database: %s" % err)
-        Bcfg2.Server.settings.read_config(cfile=cfile, repo=repo)
+        Bcfg2.settings.read_config(cfile=cfile, repo=repo)
 
         if '' in plugins:
             plugins.remove('')

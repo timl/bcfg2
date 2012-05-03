@@ -179,7 +179,7 @@ class Structure(object):
 
 class Metadata(object):
     """Signal metadata capabilities for this plugin"""
-    def add_client(self, client_name, attribs):
+    def add_client(self, client_name):
         """Add client."""
         pass
 

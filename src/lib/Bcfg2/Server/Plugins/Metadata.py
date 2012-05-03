@@ -309,102 +309,24 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         root = groups_tree.getroot()
         return root
 
-    def _search_xdata(self, tag, name, tree, alias=False):
-        for node in tree.findall("//%s" % tag):
-            if node.get("name") == name:
-                return node
-            elif alias:
-                for child in node:
-                    if (child.tag == "Alias" and
-                        child.attrib["name"] == name):
-                        return node
-        return None
+    def add_client(self, client_name):
+        """Add client to clients database."""
+        client = MetadataClient(hostname=client_name)
+        client.save()
+        return client
 
-    def search_group(self, group_name, tree):
-        """Find a group."""
-        return self._search_xdata("Group", group_name, tree)
+    def list_clients(self):
+        """ List all clients in client database """
+        return MetadataClient.objects.all()
 
-    def search_bundle(self, bundle_name, tree):
-        """Find a bundle."""
-        return self._search_xdata("Bundle", bundle_name, tree)
-
-    def search_client(self, client_name, tree):
-        return self._search_xdata("Client", client_name, tree, alias=True)
-
-    def _add_xdata(self, config, tag, name, attribs=None, alias=False):
-        node = self._search_xdata(tag, name, config.xdata, alias=alias)
-        if node != None:
-            msg = "%s \"%s\" already exists" % (tag, name)
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        element = lxml.etree.SubElement(config.base_xdata.getroot(),
-                                        tag, name=name)
-        if attribs:
-            for key, val in list(attribs.items()):
-                element.set(key, val)
-        config.write()
-
-    def add_group(self, group_name, attribs):
-        """Add group to groups.xml."""
-        return self._add_xdata(self.groups_xml, "Group", group_name,
-                               attribs=attribs)
-
-    def add_bundle(self, bundle_name):
-        """Add bundle to groups.xml."""
-        return self._add_xdata(self.groups_xml, "Bundle", bundle_name)
-
-    def add_client(self, client_name, attribs):
-        """Add client to clients.xml."""
-        return self._add_xdata(self.clients_xml, "Client", client_name,
-                               attribs=attribs, alias=True)
-
-    def _update_xdata(self, config, tag, name, attribs, alias=False):
-        node = self._search_xdata(tag, name, config.xdata, alias=alias)
-        if node == None:
-            msg = "%s \"%s\" does not exist" % (tag, name)
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        xdict = config.find_xml_for_xpath('.//%s[@name="%s"]' %
-                                          (tag, node.get('name')))
-        if not xdict:
-            msg = "Unexpected error finding %s \"%s\"" % (tag, name)
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        for key, val in list(attribs.items()):
-            xdict['xquery'][0].set(key, val)
-        config.write_xml(xdict['filename'], xdict['xmltree'])
-
-    def update_group(self, group_name, attribs):
-        """Update a groups attributes."""
-        return self._update_xdata(self.groups_xml, "Group", group_name, attribs)
-
-    def update_client(self, client_name, attribs):
-        """Update a clients attributes."""
-        return self._update_xdata(self.clients_xml, "Client", client_name,
-                                  attribs, alias=True)
-
-    def _remove_xdata(self, config, tag, name, alias=False):
-        node = self._search_xdata(tag, name, config.xdata)
-        if node == None:
-            msg = "%s \"%s\" does not exist" % (tag, name)
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        xdict = config.find_xml_for_xpath('.//%s[@name="%s"]' %
-                                          (tag, node.get('name')))
-        if not xdict:
-            msg = "Unexpected error finding %s \"%s\"" % (tag, name)
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        xdict['xquery'][0].getparent().remove(xdict['xquery'][0])
-        self.groups_xml.write_xml(xdict['filename'], xdict['xmltree'])
-
-    def remove_group(self, group_name):
-        """Remove a group."""
-        return self._remove_xdata(self.groups_xml, "Group", group_name)
-
-    def remove_bundle(self, bundle_name):
-        """Remove a bundle."""
-        return self._remove_xdata(self.groups_xml, "Bundle", bundle_name)
+    def remove_client(self, client_name):
+        """Remove a client"""
+        try:
+            client = MetadataClient.objects.get(name=client_name)
+        except DoesNotExist:
+            logger.warning("Client %s does not exist" % client_name)
+            return
+        client.delete()
 
     def _handle_clients_xml_event(self, event):
         xdata = self.clients_xml.xdata
@@ -539,34 +461,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     self.clients[bclient] = self.bad_clients[bclient]
                     del self.bad_clients[bclient]
 
-    def set_profile(self, client, profile, addresspair):
-        """Set group parameter for provided client."""
-        self.logger.info("Asserting client %s profile to %s" % (client,
-                                                                profile))
-        if False in list(self.states.values()):
-            raise MetadataRuntimeError("Metadata has not been read yet")
-        if profile not in self.public:
-            msg = "Failed to set client %s to private group %s" % (client,
-                                                                   profile)
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        if client in self.clients:
-            self.logger.info("Changing %s group from %s to %s" %
-                             (client, self.clients[client], profile))
-            self.update_client(client, dict(profile=profile))
-        else:
-            self.logger.info("Creating new client: %s, profile %s" %
-                             (client, profile))
-            if addresspair in self.session_cache:
-                # we are working with a uuid'd client
-                self.add_client(self.session_cache[addresspair][1],
-                                dict(uuid=client, profile=profile,
-                                     address=addresspair[0]))
-            else:
-                self.add_client(client, dict(profile=profile))
-        self.clients[client] = profile
-        self.clients_xml.write()
-
     def set_version(self, client, version):
         """Set group parameter for provided client."""
         self.logger.info("Setting client %s version to %s" % (client, version))
@@ -635,11 +529,10 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             (bundles, groups, categories) = self.groups[profile]
         else:
             if self.default == None:
-                msg = "Cannot set group for client %s; no default group set" % \
-                    client
-                self.logger.error(msg)
-                raise MetadataConsistencyError(msg)
-            self.set_profile(client, self.default, (None, None))
+                self.logger.error("Cannot set group for client %s; "
+                                  "no default group set" % client)
+                raise MetadataConsistencyError
+            self.add_client(client)
             profile = self.default
             [bundles, groups, categories] = self.groups[self.default]
         aliases = self.raliases.get(client, set())
