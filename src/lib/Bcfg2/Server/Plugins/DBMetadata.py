@@ -6,15 +6,16 @@ import copy
 import fcntl
 import lxml.etree
 import os
+import os.path
 import socket
 import sys
 import time
-import Bcfg2.Server
-import Bcfg2.Server.FileMonitor
-import Bcfg2.Server.Plugin
-from Bcfg2.version import Bcfg2VersionInfo
 
 from django.db import models
+
+import Bcfg2.Server.FileMonitor
+import Bcfg2.Server.Plugin
+
 
 def locked(fd):
     """Aquire a lock on a file"""
@@ -37,20 +38,16 @@ class MetadataRuntimeError(Exception):
     pass
 
 
-class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
+class XMLMetadataConfig(Bcfg2.Server.Plugin.SingleXMLFileBacked):
     """Handles xml config files and all XInclude statements"""
     def __init__(self, metadata, watch_clients, basefile):
-        # we tell XMLFileBacked _not_ to add a monitor for this
-        # file, because the main Metadata plugin has already added
-        # one.  then we immediately set should_monitor to the proper
-        # value, so that XIinclude'd files get properly watched
-        fpath = os.path.join(metadata.data, basefile)
-        Bcfg2.Server.Plugin.XMLFileBacked.__init__(self, fpath,
-                                                   fam=metadata.core.fam,
-                                                   should_monitor=False)
-        self.should_monitor = watch_clients
+        Bcfg2.Server.Plugin.SingleXMLFileBacked.__init__(self,
+                                                         os.path.join(metadata.data,
+                                                                      basefile),
+                                                         metadata.core.fam)
         self.metadata = metadata
         self.basefile = basefile
+        self.should_monitor = watch_clients
         self.data = None
         self.basedata = None
         self.basedir = metadata.data
@@ -61,20 +58,25 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
     @property
     def xdata(self):
         if not self.data:
-            raise MetadataRuntimeError("%s has no data" % self.basefile)
+            raise MetadataRuntimeError
         return self.data
 
     @property
     def base_xdata(self):
         if not self.basedata:
-            raise MetadataRuntimeError("%s has no data" % self.basefile)
+            raise MetadataRuntimeError
         return self.basedata
+
+    def add_monitor(self, fpath, fname):
+        """Add a fam monitor for an included file"""
+        if self.should_monitor:
+            self.metadata.core.fam.AddMonitor(fpath, self.metadata)
+            self.extras.append(fname)
 
     def load_xml(self):
         """Load changes from XML"""
         try:
-            xdata = lxml.etree.parse(os.path.join(self.basedir, self.basefile),
-                                     parser=Bcfg2.Server.XMLParser)
+            xdata = lxml.etree.parse(os.path.join(self.basedir, self.basefile))
         except lxml.etree.XMLSyntaxError:
             self.logger.error('Failed to parse %s' % self.basefile)
             return
@@ -89,85 +91,9 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
                                   self.basefile)
         self.data = xdata
 
-    def write(self):
-        """Write changes to xml back to disk."""
-        self.write_xml(os.path.join(self.basedir, self.basefile),
-                       self.basedata)
-
-    def write_xml(self, fname, xmltree):
-        """Write changes to xml back to disk."""
-        tmpfile = "%s.new" % fname
-        try:
-            datafile = open(tmpfile, 'w')
-        except IOError:
-            msg = "Failed to write %s: %s" % (tmpfile, sys.exc_info()[1])
-            self.logger.error(msg)
-            raise MetadataRuntimeError(msg)
-        # prep data
-        dataroot = xmltree.getroot()
-        newcontents = lxml.etree.tostring(dataroot, pretty_print=True)
-
-        fd = datafile.fileno()
-        while locked(fd) == True:
-            pass
-        try:
-            datafile.write(newcontents)
-        except:
-            fcntl.lockf(fd, fcntl.LOCK_UN)
-            msg = "Metadata: Failed to write new xml data to %s: %s" % \
-                (tmpfile, sys.exc_info()[1])
-            self.logger.error(msg, exc_info=1)
-            os.unlink(tmpfile)
-            raise MetadataRuntimeError(msg)
-        datafile.close()
-        # check if clients.xml is a symlink
-        if os.path.islink(fname):
-            fname = os.readlink(fname)
-
-        try:
-            os.rename(tmpfile, fname)
-
-        except:
-            msg = "Metadata: Failed to rename %s: %s" % (tmpfile,
-                                                         sys.exc_info()[1])
-            self.logger.error(msg)
-            raise MetadataRuntimeError(msg)
-
-    def find_xml_for_xpath(self, xpath):
-        """Find and load xml file containing the xpath query"""
-        if self.pseudo_monitor:
-            # Reload xml if we don't have a real monitor
-            self.load_xml()
-        cli = self.basedata.xpath(xpath)
-        if len(cli) > 0:
-            return {'filename': os.path.join(self.basedir, self.basefile),
-                    'xmltree': self.basedata,
-                    'xquery': cli}
-        else:
-            """Try to find the data in included files"""
-            for included in self.extras:
-                try:
-                    xdata = lxml.etree.parse(os.path.join(self.basedir,
-                                                          included),
-                                             parser=Bcfg2.Server.XMLParser)
-                    cli = xdata.xpath(xpath)
-                    if len(cli) > 0:
-                        return {'filename': os.path.join(self.basedir,
-                                                         included),
-                                'xmltree': xdata,
-                                'xquery': cli}
-                except lxml.etree.XMLSyntaxError:
-                    self.logger.error('Failed to parse %s' % (included))
-        return {}
-
-    def add_monitor(self, fpath, fname):
-        self.extras.append(fname)
-        if self.fam and self.should_monitor:
-            self.fam.AddMonitor(fpath, self.metadata)
-
     def HandleEvent(self, event):
         """Handle fam events"""
-        filename = os.path.basename(event.filename)
+        filename = event.filename.split('/')[-1]
         if filename in self.extras:
             if event.code2str() == 'exists':
                 return False
@@ -181,8 +107,8 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
 
 class ClientMetadata(object):
     """This object contains client metadata."""
-    def __init__(self, client, profile, groups, bundles, aliases, addresses,
-                 categories, uuid, password, version, query):
+    def __init__(self, client, profile, groups, bundles,
+                 aliases, addresses, categories, uuid, password, query):
         self.hostname = client
         self.profile = profile
         self.bundles = bundles
@@ -193,11 +119,6 @@ class ClientMetadata(object):
         self.uuid = uuid
         self.password = password
         self.connectors = []
-        self.version = version
-        try:
-            self.version_info = Bcfg2VersionInfo(version)
-        except:
-            self.version_info = None
         self.query = query
 
     def inGroup(self, group):
@@ -231,9 +152,15 @@ class MetadataQuery(object):
         return [self.by_name(name) for name in self.all_clients()]
 
 
+class MetadataClient(models.Model,
+                     Bcfg2.Server.Plugin.PluginDatabaseModel):
+    hostname = models.CharField(max_length=255)
+
+
 class Metadata(Bcfg2.Server.Plugin.Plugin,
                Bcfg2.Server.Plugin.Metadata,
-               Bcfg2.Server.Plugin.Statistics):
+               Bcfg2.Server.Plugin.Statistics,
+               Bcfg2.Server.Plugin.DatabaseBacked):
     """This class contains data for bcfg2 server metadata."""
     __author__ = 'bcfg-dev@mcs.anl.gov'
     name = "Metadata"
@@ -243,27 +170,27 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         Bcfg2.Server.Plugin.Plugin.__init__(self, core, datastore)
         Bcfg2.Server.Plugin.Metadata.__init__(self)
         Bcfg2.Server.Plugin.Statistics.__init__(self)
-        self.states = dict()
+        Bcfg2.Server.Plugin.DatabaseBacked.__init__(self)
         if watch_clients:
-            for fname in ["groups.xml", "clients.xml"]:
-                self.states[fname] = False
-                try:
-                    core.fam.AddMonitor(os.path.join(self.data, fname), self)
-                except:
-                    err = sys.exc_info()[1]
-                    msg = "Unable to add file monitor for %s: %s" % (fname, err)
-                    print(msg)
-                    raise Bcfg2.Server.Plugin.PluginInitError(msg)
+            try:
+                core.fam.AddMonitor(os.path.join(self.data, "groups.xml"), self)
+                core.fam.AddMonitor(os.path.join(self.data, "clients.xml"), self)
+            except:
+                print("Unable to add file monitor for groups.xml or clients.xml")
+                raise Bcfg2.Server.Plugin.PluginInitError
 
         self.clients_xml = XMLMetadataConfig(self, watch_clients, 'clients.xml')
         self.groups_xml = XMLMetadataConfig(self, watch_clients, 'groups.xml')
+        self.states = {}
+        if watch_clients:
+            self.states = {"groups.xml": False,
+                           "clients.xml": False}
         self.addresses = {}
         self.auth = dict()
         self.clients = {}
         self.aliases = {}
         self.groups = {}
         self.cgroups = {}
-        self.versions = {}
         self.public = []
         self.private = []
         self.profiles = []
@@ -297,104 +224,28 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def get_groups(self):
         '''return groups xml tree'''
-        groups_tree = lxml.etree.parse(os.path.join(self.data, "groups.xml"),
-                                       parser=Bcfg2.Server.XMLParser)
+        groups_tree = lxml.etree.parse(os.path.join(self.data, "groups.xml"))
         root = groups_tree.getroot()
         return root
 
-    def _search_xdata(self, tag, name, tree, alias=False):
-        for node in tree.findall("//%s" % tag):
-            if node.get("name") == name:
-                return node
-            elif alias:
-                for child in node:
-                    if (child.tag == "Alias" and
-                        child.attrib["name"] == name):
-                        return node
-        return None
+    def add_client(self, client_name):
+        """Add client to clients database."""
+        client = MetadataClient(hostname=client_name)
+        client.save()
+        return client
 
-    def search_group(self, group_name, tree):
-        """Find a group."""
-        return self._search_xdata("Group", group_name, tree)
+    def list_clients(self):
+        """ List all clients in client database """
+        return MetadataClient.objects.all()
 
-    def search_bundle(self, bundle_name, tree):
-        """Find a bundle."""
-        return self._search_xdata("Bundle", bundle_name, tree)
-
-    def search_client(self, client_name, tree):
-        return self._search_xdata("Client", client_name, tree, alias=True)
-
-    def _add_xdata(self, config, tag, name, attribs=None, alias=False):
-        node = self._search_xdata(tag, name, config.xdata, alias=alias)
-        if node != None:
-            self.logger.error("%s \"%s\" already exists" % (tag, name))
-            raise MetadataConsistencyError
-        element = lxml.etree.SubElement(config.base_xdata.getroot(),
-                                        tag, name=name)
-        if attribs:
-            for key, val in list(attribs.items()):
-                element.set(key, val)
-        config.write()
-
-    def add_group(self, group_name, attribs):
-        """Add group to groups.xml."""
-        return self._add_xdata(self.groups_xml, "Group", group_name,
-                               attribs=attribs)
-
-    def add_bundle(self, bundle_name):
-        """Add bundle to groups.xml."""
-        return self._add_xdata(self.groups_xml, "Bundle", bundle_name)
-
-    def add_client(self, client_name, attribs):
-        """Add client to clients.xml."""
-        return self._add_xdata(self.clients_xml, "Client", client_name,
-                               attribs=attribs, alias=True)
-
-    def _update_xdata(self, config, tag, name, attribs, alias=False):
-        node = self._search_xdata(tag, name, config.xdata, alias=alias)
-        if node == None:
-            self.logger.error("%s \"%s\" does not exist" % (tag, name))
-            raise MetadataConsistencyError
-        xdict = config.find_xml_for_xpath('.//%s[@name="%s"]' %
-                                          (tag, node.get('name')))
-        if not xdict:
-            self.logger.error("Unexpected error finding %s \"%s\"" %
-                              (tag, name))
-            raise MetadataConsistencyError
-        for key, val in list(attribs.items()):
-            xdict['xquery'][0].set(key, val)
-        config.write_xml(xdict['filename'], xdict['xmltree'])
-
-    def update_group(self, group_name, attribs):
-        """Update a groups attributes."""
-        return self._update_xdata(self.groups_xml, "Group", group_name, attribs)
-
-    def update_client(self, client_name, attribs):
-        """Update a clients attributes."""
-        return self._update_xdata(self.clients_xml, "Client", client_name,
-                                  attribs, alias=True)
-
-    def _remove_xdata(self, config, tag, name, alias=False):
-        node = self._search_xdata(tag, name, config.xdata)
-        if node == None:
-            self.logger.error("%s \"%s\" does not exist" % (tag, name))
-            raise MetadataConsistencyError
-        xdict = config.find_xml_for_xpath('.//%s[@name="%s"]' %
-                                          (tag, node.get('name')))
-        if not xdict:
-            self.logger.error("Unexpected error finding %s \"%s\"" %
-                              (tag, name))
-            raise MetadataConsistencyError
-        xdict['xquery'][0].getparent().remove(xdict['xquery'][0])
-        self.groups_xml.write_xml(xdict['filename'], xdict['xmltree'])
-
-    def remove_group(self, group_name):
-        """Remove a group."""
-        return self._remove_xdata(self.groups_xml, "Group", group_name)
-
-    def remove_bundle(self, bundle_name):
-        """Remove a bundle."""
-        return self._remove_xdata(self.groups_xml, "Bundle", bundle_name)
+    def remove_client(self, client_name):
+        """Remove a client"""
+        try:
+            client = MetadataClient.objects.get(name=client_name)
+        except DoesNotExist:
+            logger.warning("Client %s does not exist" % client_name)
+            return
+        client.delete()
 
     def _handle_clients_xml_event(self, event):
         xdata = self.clients_xml.xdata
@@ -428,8 +279,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                 self.floating.append(clname)
             if 'password' in client.attrib:
                 self.passwords[clname] = client.get('password')
-            if 'version' in client.attrib:
-                self.versions[clname] = client.get('version')
 
             self.raliases[clname] = set()
             for alias in client.findall('Alias'):
@@ -529,45 +378,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     self.clients[bclient] = self.bad_clients[bclient]
                     del self.bad_clients[bclient]
 
-    def set_profile(self, client, profile, addresspair):
-        """Set group parameter for provided client."""
-        self.logger.info("Asserting client %s profile to %s" % (client, profile))
-        if False in list(self.states.values()):
-            raise MetadataRuntimeError
-        if profile not in self.public:
-            self.logger.error("Failed to set client %s to private group %s" %
-                              (client, profile))
-            raise MetadataConsistencyError
-        if client in self.clients:
-            self.logger.info("Changing %s group from %s to %s" %
-                             (client, self.clients[client], profile))
-            self.update_client(client, dict(profile=profile))
-        else:
-            self.logger.info("Creating new client: %s, profile %s" %
-                             (client, profile))
-            if addresspair in self.session_cache:
-                # we are working with a uuid'd client
-                self.add_client(self.session_cache[addresspair][1],
-                                dict(uuid=client, profile=profile,
-                                     address=addresspair[0]))
-            else:
-                self.add_client(client, dict(profile=profile))
-        self.clients[client] = profile
-        self.clients_xml.write()
-
-    def set_version(self, client, version):
-        """Set group parameter for provided client."""
-        self.logger.info("Setting client %s version to %s" % (client, version))
-        if client in self.clients:
-            self.logger.info("Setting version on client %s to %s" %
-                             (client, version))
-            self.update_client(client, dict(version=version))
-        else:
-            msg = "Cannot set version on non-existent client %s" % client
-            self.logger.error(msg)
-            raise MetadataConsistencyError(msg)
-        self.versions[client] = version
-        self.clients_xml.write()
 
     def resolve_client(self, addresspair, cleanup_cache=False):
         """Lookup address locally or in DNS to get a hostname."""
@@ -597,9 +407,9 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         address = addresspair[0]
         if address in self.addresses:
             if len(self.addresses[address]) != 1:
-                err = "Address %s has multiple reverse assignments; a uuid must be used" % address
-                self.logger.error(err)
-                raise MetadataConsistencyError(err)
+                self.logger.error("Address %s has multiple reverse assignments; "
+                                  "a uuid must be used" % (address))
+                raise MetadataConsistencyError
             return self.addresses[address][0]
         try:
             cname = socket.gethostbyaddr(address)[0].lower()
@@ -607,14 +417,14 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                 return self.aliases[cname]
             return cname
         except socket.herror:
-            warning = "address resolution error for %s" % address
+            warning = "address resolution error for %s" % (address)
             self.logger.warning(warning)
-            raise MetadataConsistencyError(warning)
+            raise MetadataConsistencyError
 
     def get_initial_metadata(self, client):
         """Return the metadata for a given client."""
         if False in list(self.states.values()):
-            raise MetadataRuntimeError("Metadata has not been read yet")
+            raise MetadataRuntimeError
         client = client.lower()
         if client in self.aliases:
             client = self.aliases[client]
@@ -626,12 +436,11 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                 self.logger.error("Cannot set group for client %s; "
                                   "no default group set" % client)
                 raise MetadataConsistencyError
-            self.set_profile(client, self.default, (None, None))
+            self.add_client(client)
             profile = self.default
             [bundles, groups, categories] = self.groups[self.default]
         aliases = self.raliases.get(client, set())
         addresses = self.raddresses.get(client, set())
-        version = self.versions.get(client, None)
         newgroups = set(groups)
         newbundles = set(bundles)
         newcategories = {}
@@ -655,7 +464,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             [newgroups.add(g) for g in ngroups if g not in newgroups]
             newcategories.update(ncategories)
         return ClientMetadata(client, profile, newgroups, newbundles, aliases,
-                              addresses, newcategories, uuid, password, version,
+                              addresses, newcategories, uuid, password,
                               self.query)
 
     def get_all_group_names(self):
@@ -677,11 +486,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         mdata = [self.core.build_metadata(client)
                  for client in list(self.clients.keys())]
         return [md.hostname for md in mdata if md.groups.issuperset(groups)]
-
-    def get_client_names_by_bundles(self, bundles):
-        mdata = [self.core.build_metadata(client)
-                 for client in list(self.clients.keys())]
-        return [md.hostname for md in mdata if md.bundles.issuperset(bundles)]
 
     def merge_additional_groups(self, imd, groups):
         for group in groups:
@@ -830,8 +634,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         def include_group(group):
             return not only_client or group in clientmeta.groups
 
-        groups_tree = lxml.etree.parse(os.path.join(self.data, "groups.xml"),
-                                       parser=Bcfg2.Server.XMLParser)
+        groups_tree = lxml.etree.parse(os.path.join(self.data, "groups.xml"))
         try:
             groups_tree.xinclude()
         except lxml.etree.XIncludeError:
