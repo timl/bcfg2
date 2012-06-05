@@ -149,7 +149,7 @@ class Plugin(Debuggable):
 
     @classmethod
     def init_repo(cls, repo):
-        path = "%s/%s" % (repo, cls.name)
+        path = os.path.join(repo, cls.name)
         os.makedirs(path)
 
     def shutdown(self):
@@ -189,6 +189,9 @@ class Metadata(object):
 
     def viz(self, hosts, bundles, key, colors):
         """Create viz str for viz admin mode."""
+        pass
+
+    def _handle_default_event(self, event):
         pass
 
     def get_initial_metadata(self, client_name):

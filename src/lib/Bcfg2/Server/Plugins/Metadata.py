@@ -2,6 +2,7 @@
 This file stores persistent metadata for the Bcfg2 Configuration Repository.
 """
 
+import re
 import copy
 import fcntl
 import lxml.etree
@@ -238,25 +239,19 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
     __author__ = 'bcfg-dev@mcs.anl.gov'
     name = "Metadata"
     sort_order = 500
+    __files__ = ["groups.xml", "clients.xml"]
 
     def __init__(self, core, datastore, watch_clients=True):
         Bcfg2.Server.Plugin.Plugin.__init__(self, core, datastore)
         Bcfg2.Server.Plugin.Metadata.__init__(self)
         Bcfg2.Server.Plugin.Statistics.__init__(self)
+        self.watch_clients = watch_clients
         self.states = dict()
-        if watch_clients:
-            for fname in ["groups.xml", "clients.xml"]:
-                self.states[fname] = False
-                try:
-                    core.fam.AddMonitor(os.path.join(self.data, fname), self)
-                except:
-                    err = sys.exc_info()[1]
-                    msg = "Unable to add file monitor for %s: %s" % (fname, err)
-                    print(msg)
-                    raise Bcfg2.Server.Plugin.PluginInitError(msg)
+        self.extra = dict()
+        self.handlers = []
+        for fname in self.__files__:
+            self._handle_file(fname)
 
-        self.clients_xml = XMLMetadataConfig(self, watch_clients, 'clients.xml')
-        self.groups_xml = XMLMetadataConfig(self, watch_clients, 'groups.xml')
         self.addresses = {}
         self.auth = dict()
         self.clients = {}
@@ -276,8 +271,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         self.session_cache = {}
         self.default = None
         self.pdirty = False
-        self.extra = {'groups.xml': [],
-                      'clients.xml': []}
         self.password = core.password
         self.query = MetadataQuery(core.build_metadata,
                                    lambda: list(self.clients.keys()),
@@ -287,20 +280,30 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                                    self.get_all_groups_in_category)
 
     @classmethod
-    def init_repo(cls, repo, groups, os_selection, clients):
-        path = os.path.join(repo, cls.name)
-        os.makedirs(path)
-        open(os.path.join(repo, "Metadata", "groups.xml"),
-             "w").write(groups % os_selection)
-        open(os.path.join(repo, "Metadata", "clients.xml"),
-             "w").write(clients % socket.getfqdn())
+    def init_repo(cls, repo, **kwargs):
+        Bcfg2.Server.Plugin.Metadata.init_repo(cls, repo)
 
-    def get_groups(self):
-        '''return groups xml tree'''
-        groups_tree = lxml.etree.parse(os.path.join(self.data, "groups.xml"),
-                                       parser=Bcfg2.Server.XMLParser)
-        root = groups_tree.getroot()
-        return root
+        for fname in self.__files__:
+            aname = re.sub(r'[^A-z0-9_]', '_', fname)
+            if aname in kwargs:
+                open(os.path.join(repo, cls.name, fname),
+                     "w").write(kwargs[aname])
+
+    def _handle_file(self, fname):
+        if self.watch_clients:
+            try:
+                self.core.fam.AddMonitor(os.path.join(self.data, fname), self)
+            except:
+                err = sys.exc_info()[1]
+                msg = "Unable to add file monitor for %s: %s" % (fname, err)
+                self.logger.error(msg)
+                raise Bcfg2.Server.Plugin.PluginInitError(msg)
+            self.states[fname] = False
+        aname = re.sub(r'[^A-z0-9_]', '_', fname)
+        xmlcfg = XMLMetadataConfig(self, self.watch_clients, fname)
+        setattr(self, aname, xmlcfg)
+        self.handlers.append(xmlcfg.HandleEvent)
+        self.extra[fname] = []
 
     def _search_xdata(self, tag, name, tree, alias=False):
         for node in tree.findall("//%s" % tag):
@@ -386,7 +389,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                               (tag, name))
             raise MetadataConsistencyError
         xdict['xquery'][0].getparent().remove(xdict['xquery'][0])
-        self.groups_xml.write_xml(xdict['filename'], xdict['xmltree'])
+        config.write_xml(xdict['filename'], xdict['xmltree'])
 
     def remove_group(self, group_name):
         """Remove a group."""
@@ -395,6 +398,10 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
     def remove_bundle(self, bundle_name):
         """Remove a bundle."""
         return self._remove_xdata(self.groups_xml, "Bundle", bundle_name)
+
+    def remove_client(self, client_name):
+        """Remove a bundle."""
+        return self._remove_xdata(self.clients_xml, "Client", client_name)
 
     def _handle_clients_xml_event(self, event):
         xdata = self.clients_xml.xdata
@@ -506,10 +513,14 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def HandleEvent(self, event):
         """Handle update events for data files."""
-        if self.clients_xml.HandleEvent(event):
-            self._handle_clients_xml_event(event)
-        elif self.groups_xml.HandleEvent(event):
-            self._handle_groups_xml_event(event)
+        for hdlr in self.handlers:
+            aname = re.sub(r'[^A-z0-9_]', '_', os.path.basename(event.filename))
+            if hdlr(event):
+                try:
+                    proc = getattr(self, "_handle_%s_event" % aname)
+                except AttributeError:
+                    proc = self._handle_default_event
+                proc(event)
 
         if False not in list(self.states.values()):
             # check that all client groups are real and complete
