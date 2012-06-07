@@ -18,8 +18,8 @@ import Bcfg2.Server.Plugin
 
 from Bcfg2.Server.Plugins.Metadata import *
 
-class MetadataClient(models.Model,
-                     Bcfg2.Server.Plugin.PluginDatabaseModel):
+class MetadataClientModel(models.Model,
+                          Bcfg2.Server.Plugin.PluginDatabaseModel):
     hostname = models.CharField(max_length=255)
 
 
@@ -45,8 +45,9 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
 
     def add_client(self, client_name):
         """Add client to clients database."""
-        client = MetadataClient(hostname=client_name)
+        client = MetadataClientModel(hostname=client_name)
         client.save()
+        self.clients = self.list_clients()
         return client
 
     def update_group(self, group_name, attribs):
@@ -66,7 +67,7 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
 
     def list_clients(self):
         """ List all clients in client database """
-        return MetadataClient.objects.all()
+        return MetadataClientModel.objects.all()
 
     def remove_group(self, group_name, attribs):
         msg = "DBMetadata does not support removing groups"
@@ -81,14 +82,26 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
     def remove_client(self, client_name):
         """Remove a client"""
         try:
-            client = MetadataClient.objects.get(name=client_name)
+            client = MetadataClientModel.objects.get(name=client_name)
         except DoesNotExist:
             logger.warning("Client %s does not exist" % client_name)
             return
         client.delete()
+        self.clients = self.list_clients()
 
-    def set_profile(self, client, profile, addresspair):
-        msg = "DBMetadata does not support asserting client profiles"
-        self.logger.error(msg)
-        raise Bcfg2.Server.Plugin.PluginExecutionError(msg)
+    def _set_profile(self, client, profile, addresspair):
+        if client not in self.clients:
+            # adding a new client
+            self.add_client(client)
+            if client not in self.clientgroups:
+                self.clientgroups[client] = [profile]
+        else:
+            msg = "DBMetadata does not support asserting client profiles"
+            self.logger.error(msg)
+            raise Bcfg2.Server.Plugin.PluginExecutionError(msg)
 
+    def _handle_clients_xml_event(self, event):
+        # clients.xml is parsed and the options specified in it are
+        # understood, but it does _not_ assert client existence.
+        Metadata._handle_clients_xml_event(self, event)
+        self.clients = self.list_clients()

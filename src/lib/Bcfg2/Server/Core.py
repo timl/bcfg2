@@ -205,8 +205,7 @@ class BaseCore(object):
         try:
             self.plugins[plugin] = plug(self, self.datastore)
         except PluginInitError:
-            self.logger.error("Failed to instantiate plugin %s" % plugin,
-                              exc_info=1)
+            logger.error("Failed to instantiate plugin %s" % plugin, exc_info=1)
         except:
             self.logger.error("Unexpected instantiation failure for plugin %s" %
                               plugin, exc_info=1)
@@ -241,8 +240,13 @@ class BaseCore(object):
                 plugin.validate_structures(metadata, data)
             except Bcfg2.Server.Plugin.ValidationError:
                 err = sys.exc_info()[1]
+<<<<<<< HEAD
                 self.logger.error("Plugin %s structure validation failed: %s" %
                                   (plugin.name, err))
+=======
+                logger.error("Plugin %s structure validation failed: %s" %
+                             (plugin.name, err.message))
+>>>>>>> checkpoint
                 raise
             except:
                 self.logger.error("Plugin %s: unexpected structure validation "
