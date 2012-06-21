@@ -80,13 +80,11 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
         self.clients = self.list_clients()
 
     def _set_profile(self, client, profile, addresspair):
-        print "_set_profile(%s, %s, %s)" % (client, profile, addresspair)
         if client not in self.clients:
             # adding a new client
             self.add_client(client)
             if client not in self.clientgroups:
                 self.clientgroups[client] = [profile]
-            # TODO: make this persistent
         else:
             msg = "DBMetadata does not support asserting client profiles"
             self.logger.error(msg)
@@ -97,16 +95,3 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
         # understood, but it does _not_ assert client existence.
         Metadata._handle_clients_xml_event(self, event)
         self.clients = self.list_clients()
-
-
-class DBMetadataLint(Bcfg2.Server.Lint.ServerPlugin):
-    def Run(self):
-        md = self.core.plugins['DBMetadata']
-        if md.default:
-            self.LintError("dbmetadata-default-group",
-                           "Use of default group with DBMetadata hides group "
-                           "membership of new clients")
-
-    @classmethod
-    def Errors(cls):
-        return {"dbmetadata-default-group":"warning"}
