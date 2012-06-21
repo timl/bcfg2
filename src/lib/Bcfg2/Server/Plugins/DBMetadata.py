@@ -30,7 +30,8 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
         Metadata.__init__(self, core, datastore, watch_clients=watch_clients)
         Bcfg2.Server.Plugin.DatabaseBacked.__init__(self)
         if os.path.exists(os.path.join(self.data, "clients.xml")):
-            self.logger.warning("clients.xml found, parsing in compatibility mode")
+            self.logger.warning("DBMetadata: clients.xml found, parsing in "
+                                "compatibility mode")
             self._handle_file("clients.xml")
 
     def add_group(self, group_name, attribs):
@@ -95,6 +96,7 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
             self.add_client(client)
             if client not in self.clientgroups:
                 self.clientgroups[client] = [profile]
+            # TODO: make this persistent
         else:
             msg = "DBMetadata does not support asserting client profiles"
             self.logger.error(msg)

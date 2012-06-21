@@ -540,8 +540,6 @@ class BaseCore(object):
     def RecvProbeData(self, address, probedata):
         """Receive probe data from clients."""
         client, metadata = self.resolve_client(address)
-        # clear dynamic groups
-        self.metadata.cgroups[metadata.hostname] = []
         try:
             xpdata = lxml.etree.XML(probedata.encode('utf-8'),
                                     parser=Bcfg2.Server.XMLParser)
