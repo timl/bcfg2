@@ -595,22 +595,22 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                                        (gname, group))
 
 
-    def set_profile(self, client, profile, addresspair):
+    def set_profile(self, client, profile, addresspair, force=False):
         """Set group parameter for provided client."""
         self.logger.info("Asserting client %s profile to %s" %
                          (client, profile))
         if False in list(self.states.values()):
             raise MetadataRuntimeError
-        if profile not in self.groups:
+        if not force and profile not in self.groups:
             msg = "Profile group %s does not exist" % profile
             self.logger.error(msg)
             raise MetadataConsistencyError(msg)
         group = self.groups[profile]
-        if not group.is_public:
+        if not force and not group.is_public:
             msg = "Cannot set client %s to private group %s" % (client, profile)
             self.logger.error(msg)
             raise MetadataConsistencyError(msg)
-        self._set_profile(self, client, profile, addresspair)
+        self._set_profile(client, profile, addresspair)
 
     def _set_profile(self, client, profile, addresspair):
         if client in self.clients:
@@ -725,18 +725,27 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         categories = dict()
         profile = None
 
-        if client not in self.clients and self.default:
-            self.set_profile(client, self.default, (None, None))
-            groups.add(self.default)
-            category = self.groups[self.default].category
-            if category:
-                categories[category] = self.default
-            if (self.default in self.groups and 
-                self.groups[self.default].is_profile):
-                profile = self.default
+        if client not in self.clients:
+            pgroup = None
+            if self.default:
+                pgroup = self.default
+            elif client in self.clientgroups:
+                pgroup = self.clientgroups[client][0]
+
+            if pgroup:
+                self.set_profile(client, pgroup, (None, None), force=True)
+                groups.add(pgroup)
+                category = self.groups[pgroup].category
+                if category:
+                    categories[category] = pgroup
+                if (pgroup in self.groups and self.groups[pgroup].is_profile):
+                    profile = pgroup
+            else:
+                msg = "Cannot add new client %s; no default group set" % client
+                self.logger.error(msg)
+                raise MetadataConsistencyError(msg)
 
         if client in self.clientgroups:
-            # TODO: clientgroups should be included in self.group_membership
             for cgroup in self.clientgroups[client]:
                 if cgroup in groups:
                     continue
