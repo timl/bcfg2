@@ -72,26 +72,7 @@ class Core(BaseCore):
 
     def run(self):
         if self.setup['daemon']:
-            child_pid = os.fork()
-            if child_pid != 0:
-                return
-
-            os.setsid()
-
-            child_pid = os.fork()
-            if child_pid != 0:
-                os._exit(0)
-
-            redirect_file = open("/dev/null", "w+")
-            os.dup2(redirect_file.fileno(), sys.__stdin__.fileno())
-            os.dup2(redirect_file.fileno(), sys.__stdout__.fileno())
-            os.dup2(redirect_file.fileno(), sys.__stderr__.fileno())
-
-            os.chdir(os.sep)
-
-            pidfile = open(self.setup['daemon'] or "/dev/null", "w")
-            pidfile.write("%s\n" % os.getpid())
-            pidfile.close()
+            self._daemonize()
 
         hostname, port = urlparse(self.setup['location'])[1].split(':')
         server_address = socket.getaddrinfo(hostname,
@@ -101,8 +82,8 @@ class Core(BaseCore):
         try:
             server = XMLRPCServer(self.setup['listen_all'],
                                   server_address,
-                                  keyfile=self.setup['keyfile'],
-                                  certfile=self.setup['certfile'],
+                                  keyfile=self.setup['key'],
+                                  certfile=self.setup['cert'],
                                   register=False,
                                   timeout=1,
                                   ca=self.setup['ca'],

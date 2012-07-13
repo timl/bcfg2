@@ -7,25 +7,14 @@ import sys
 import threading
 import time
 import inspect
+import lxml.etree
 from traceback import format_exc
-
-try:
-    import lxml.etree
-except ImportError:
-    print("Failed to import lxml dependency. Shutting down server.")
-    raise SystemExit(1)
-
-from Bcfg2.Component import Component, exposed
 from Bcfg2.Server.Plugin import PluginInitError, PluginExecutionError
 import Bcfg2.Server
 import Bcfg2.Server.FileMonitor
 import Bcfg2.Server.Plugins.Metadata
-# Compatibility imports
-from Bcfg2.Bcfg2Py3k import xmlrpclib
 if sys.hexversion >= 0x03000000:
     from functools import reduce
-
-logger = logging.getLogger('Bcfg2.Server.Core')
 
 try:
     import psyco
@@ -66,7 +55,7 @@ class BaseCore(object):
         self.logger = logging.getLogger('bcfg2-server')
         level = logging.INFO
         self.logger.setLevel(level)
-        Bcfg2.Logger.setup_logging(self.implementation,
+        Bcfg2.Logger.setup_logging('bcfg2-server',
                                    to_console=True,
                                    to_syslog=True,
                                    to_file=setup['logging'],
@@ -382,6 +371,30 @@ class BaseCore(object):
     def run(self, **kwargs):
         """ run the server core """
         raise NotImplementedError
+
+    def _daemonize(self):
+        child_pid = os.fork()
+        if child_pid != 0:
+            return
+
+        os.setsid()
+
+        child_pid = os.fork()
+        if child_pid != 0:
+            os._exit(0)
+            
+        redirect_file = open("/dev/null", "w+")
+        os.dup2(redirect_file.fileno(), sys.__stdin__.fileno())
+        os.dup2(redirect_file.fileno(), sys.__stdout__.fileno())
+        os.dup2(redirect_file.fileno(), sys.__stderr__.fileno())
+
+        os.chdir(os.sep)
+        
+        pidfile = open(self.setup['daemon'] or "/dev/null", "w")
+        pidfile.write("%s\n" % os.getpid())
+        pidfile.close()
+
+        return os.getpid()
 
     def critical_error(self, operation):
         """ this should be overridden by child classes """
