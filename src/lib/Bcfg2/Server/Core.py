@@ -9,10 +9,13 @@ import time
 import inspect
 import lxml.etree
 from traceback import format_exc
-from Bcfg2.Server.Plugin import PluginInitError, PluginExecutionError
 import Bcfg2.Server
+import Bcfg2.Logger
 import Bcfg2.Server.FileMonitor
 import Bcfg2.Server.Plugins.Metadata
+from Bcfg2.Bcfg2Py3k import xmlrpclib
+from Bcfg2.Server.Plugin import PluginInitError, PluginExecutionError
+
 if sys.hexversion >= 0x03000000:
     from functools import reduce
 
@@ -47,13 +50,14 @@ class BaseCore(object):
     Bcfg2 Server logic and modules.
     """
 
-    def __init__(self, repo, plugins, password, encoding,
-                 cfile='/etc/bcfg2.conf', ca=None, setup=None,
-                 filemonitor='default', start_fam_thread=False):
-        self.datastore = repo
+    def __init__(self, setup, start_fam_thread=False):
+        self.datastore = setup['repo']
 
         self.logger = logging.getLogger('bcfg2-server')
-        level = logging.INFO
+        if 'debug' in setup and setup['debug']:
+            level = logging.DEBUG
+        else:
+            level = logging.INFO
         self.logger.setLevel(level)
         Bcfg2.Logger.setup_logging('bcfg2-server',
                                    to_console=True,
@@ -62,7 +66,7 @@ class BaseCore(object):
                                    level=level)
 
         try:
-            fm = Bcfg2.Server.FileMonitor.available[filemonitor]
+            fm = Bcfg2.Server.FileMonitor.available[setup['filemonitor']]
         except KeyError:
             self.logger.error("File monitor driver %s not available; "
                               "forcing to default" % filemonitor)
@@ -75,26 +79,26 @@ class BaseCore(object):
         try:
             self.fam = fm(**famargs)
         except IOError:
-            msg = "Failed to instantiate fam driver %s" % filemonitor
+            msg = "Failed to instantiate fam driver %s" % setup['filemonitor']
             self.logger.error(msg, exc_info=1)
             raise CoreInitError(msg)
         self.pubspace = {}
-        self.cfile = cfile
+        self.cfile = setup['configfile']
         self.cron = {}
         self.plugins = {}
         self.plugin_blacklist = {}
         self.revision = '-1'
-        self.password = password
-        self.encoding = encoding
+        self.password = setup['password']
+        self.encoding = setup['encoding']
         self.setup = setup
         atexit.register(self.shutdown)
         # Create an event to signal worker threads to shutdown
         self.terminate = threading.Event()
 
-        if '' in plugins:
-            plugins.remove('')
+        if '' in setup['plugins']:
+            setup['plugins'].remove('')
 
-        for plugin in plugins:
+        for plugin in setup['plugins']:
             if not plugin in self.plugins:
                 self.init_plugins(plugin)
         # Remove blacklisted plugins
@@ -130,8 +134,12 @@ class BaseCore(object):
         self.generators = self.plugins_by_type(Bcfg2.Server.Plugin.Generator)
         self.structures = self.plugins_by_type(Bcfg2.Server.Plugin.Structure)
         self.connectors = self.plugins_by_type(Bcfg2.Server.Plugin.Connector)
-        self.ca = ca
-        self.fam_thread = threading.Thread(target=self._file_monitor_thread)
+        self.ca = setup['ca']
+        self.fam_thread = \
+            threading.Thread(name="%sFAMThread" % setup['filemonitor'],
+                             target=self._file_monitor_thread)
+        self.lock = threading.Lock()
+
         if start_fam_thread:
             self.fam_thread.start()
             self.monitor_cfile()
@@ -173,6 +181,7 @@ class BaseCore(object):
 
     def init_plugins(self, plugin):
         """Handling for the plugins."""
+        self.logger.debug("Loading plugin %s" % plugin)
         try:
             mod = getattr(__import__("Bcfg2.Server.Plugins.%s" %
                                 (plugin)).Server.Plugins, plugin)
@@ -452,11 +461,20 @@ class BaseCore(object):
             else:
                 meta = None
         except Bcfg2.Server.Plugins.Metadata.MetadataConsistencyError:
-            self.critical_error("Client metadata resolution error for %s" %
-                                address[0])
+            err = sys.exc_info()[1]
+            self.critical_error("Client metadata resolution error for %s: %s" %
+                                (address[0], err))
         except Bcfg2.Server.Plugins.Metadata.MetadataRuntimeError:
-            self.critical_error('Metadata system runtime failure')
+            err = sys.exc_info()[1]
+            self.critical_error('Metadata system runtime failure for %s: %s' %
+                                (address[0], err))
         return (client, meta)
+
+    def critical_error(self, operation):
+        """Log and err, traceback and return an xmlrpc fault to client."""
+        self.logger.error(operation, exc_info=1)
+        raise xmlrpclib.Fault(xmlrpclib.APPLICATION_ERROR,
+                              "Critical failure: %s" % operation)
 
     # XMLRPC handlers start here
     @exposed
@@ -568,7 +586,8 @@ class BaseCore(object):
         else:
             # No ca, so no cert validation can be done
             acert = None
-        return self.metadata.AuthenticateConnection(acert, user, password, address)
+        return self.metadata.AuthenticateConnection(acert, user, password,
+                                                    address)
 
     @exposed
     def GetDecisionList(self, address, mode):

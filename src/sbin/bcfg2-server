@@ -27,12 +27,7 @@ if __name__ == '__main__':
         if not os.path.exists(setup['configfile']):
             print("Could not read %s" % setup['configfile'])
             sys.exit(1)
-        core = Core(setup['repo'], setup['plugins'],
-                    setup['password'], setup['encoding'],
-                    ca=setup['ca'],
-                    filemonitor=setup['filemonitor'],
-                    start_fam_thread=True,
-                    setup=setup)
+        core = Core(setup, start_fam_thread=True)
         core.run()
     except CoreInitError:
         msg = sys.exc_info()[1]

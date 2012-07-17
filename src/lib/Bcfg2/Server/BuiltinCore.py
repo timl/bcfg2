@@ -17,12 +17,6 @@ class NoExposedMethod (Exception):
 class Core(BaseCore):
     name = 'bcfg2-server'
 
-    def critical_error(self, operation):
-        """Log and err, traceback and return an xmlrpc fault to client."""
-        self.logger.error(operation, exc_info=1)
-        raise xmlrpclib.Fault(xmlrpclib.APPLICATION_ERROR,
-                              "Critical unexpected failure: %s" % operation)
-
     def _resolve_exposed_method(self, method_name):
         """Resolve an exposed method.
 
