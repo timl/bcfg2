@@ -460,13 +460,13 @@ class BaseCore(object):
 
     # XMLRPC handlers start here
     @exposed
-    def listMethods(self):
+    def listMethods(self, address):
         return [name
                 for name, func in inspect.getmembers(self, callable)
                 if getattr(func, "exposed", False)]
 
     @exposed
-    def methodHelp(self, method_name):
+    def methodHelp(self, address, method_name):
         raise NotImplementedError
 
     @exposed
