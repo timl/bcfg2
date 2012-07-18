@@ -12,14 +12,16 @@ from Bcfg2.Server.Core import BaseCore
 from cherrypy.lib import xmlrpcutil
 from cherrypy._cptools import ErrorTool
 
-#cherrypy.config.update({'environment': 'embedded'})
+cherrypy.config.update({'environment': 'embedded'})
 
 if cherrypy.engine.state == 0:
     cherrypy.engine.start(blocking=False)
     atexit.register(cherrypy.engine.stop)
 
 # define our own error handler that handles xmlrpclib.Fault objects
-# and so allows for the possibility of returning proper error codes
+# and so allows for the possibility of returning proper error
+# codes. this obviates the need to use the builtin CherryPy xmlrpc
+# tool
 def on_error(*args, **kwargs):
     err = sys.exc_info()[1]
     if not isinstance(err, xmlrpclib.Fault):
