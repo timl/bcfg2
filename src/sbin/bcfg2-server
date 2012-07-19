@@ -27,19 +27,14 @@ if __name__ == '__main__':
     if setup['backend'] not in ['best', 'cherrypy', 'builtin']:
         print("Unknown server backend %s, using 'best'" % setup['backend'])
         setup['backend'] = 'best'
-    if setup['backend'] == 'best':
-        try:
-            from Bcfg2.Server.CherryPyCore import Core
-        except ImportError:
-            from Bcfg2.Server.BuiltinCore import Core
-    elif setup['backend'] == 'cherrypy':
+    if setup['backend'] == 'cherrypy':
         try:
             from Bcfg2.Server.CherryPyCore import Core
         except ImportError:
             err = sys.exc_info()[1]
             print("Unable to import CherryPy server core: %s" % err)
             raise
-    elif setup['backend'] == 'builtin':
+    elif setup['backend'] == 'builtin' or setup['backend'] == 'best':
         from Bcfg2.Server.BuiltinCore import Core
 
     try:

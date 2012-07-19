@@ -36,11 +36,7 @@ class Core(BaseCore):
         cherrypy.tools.bcfg2_authn = cherrypy.Tool('on_start_resource',
                                                    self.do_authn)
 
-        self.rmi = dict()
-        if self.plugins:
-            for pname, pinst in list(self.plugins.items()):
-                for mname in pinst.__rmi__:
-                    self.rmi["%s.%s" % (pname, mname)] = getattr(pinst, mname)
+        self.rmi = self._get_rmi()
 
     def do_authn(self):
         try:
@@ -64,9 +60,8 @@ class Core(BaseCore):
         except ValueError:
             username = auth_content
             password = ""
-
+        
         # FIXME: Get client cert
-        #cert = self.request.getpeercert()
         cert = None
         address = (cherrypy.request.remote.ip, cherrypy.request.remote.name)
         return self.authenticate(cert, username, password, address)
@@ -82,13 +77,8 @@ class Core(BaseCore):
             address = (cherrypy.request.remote.ip, cherrypy.request.remote.name)
             rpcparams = (address, ) + rpcparams
 
-            subhandler = self
-            for attr in str(rpcmethod).split('.'):
-                subhandler = getattr(subhandler, attr, None)
-                
-            if subhandler and getattr(subhandler, "exposed", False):
-                handler = subhandler
-            else:
+            handler = getattr(self, rpcmethod)
+            if not handler or not getattr(handler, "exposed", False):
                 raise Exception('method "%s" is not supported' % attr)
         else:
             try:
@@ -96,7 +86,7 @@ class Core(BaseCore):
             except:
                 raise Exception('method "%s" is not supported' % rpcmethod)
 
-        body = subhandler(*rpcparams, **params)
+        body = handler(*rpcparams, **params)
         
         xmlrpcutil.respond(body, 'utf-8', True)
         return cherrypy.serving.response.body

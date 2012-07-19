@@ -472,12 +472,22 @@ class BaseCore(object):
         raise xmlrpclib.Fault(xmlrpclib.APPLICATION_ERROR,
                               "Critical failure: %s" % operation)
 
+    def _get_rmi(self):
+        rmi = dict()
+        if self.plugins:
+            for pname, pinst in list(self.plugins.items()):
+                for mname in pinst.__rmi__:
+                    rmi["%s.%s" % (pname, mname)] = getattr(pinst, mname)
+        return rmi
+
     # XMLRPC handlers start here
     @exposed
     def listMethods(self, address):
-        return [name
-                for name, func in inspect.getmembers(self, callable)
-                if getattr(func, "exposed", False)]
+        methods = [name
+                   for name, func in inspect.getmembers(self, callable)
+                   if getattr(func, "exposed", False)]
+        methods.extend(self._get_rmi().keys())
+        return methods
 
     @exposed
     def methodHelp(self, address, method_name):
