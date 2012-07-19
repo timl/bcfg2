@@ -101,6 +101,22 @@ class Core(BaseCore):
         xmlrpcutil.respond(body, 'utf-8', True)
         return cherrypy.serving.response.body
 
+    def run(self):
+        hostname, port = urlparse(self.setup['location'])[1].split(':')
+        if self.setup['listen_all']:
+            hostname = '0.0.0.0'
+
+        config = {'engine.autoreload.on': False,
+                  'server.socket_port': int(port)}
+        if self.setup['cert'] and self.setup['key']:
+            config.update({'server.ssl_module': 'pyopenssl',
+                           'server.ssl_certificate': self.setup['cert'],
+                           'server.ssl_private_key': self.setup['key']})
+        if self.setup['debug']:
+            config['log.screen'] = True
+        cherrypy.config.update(config)
+        cherrypy.quickstart(self, config={'/': self.setup})
+                                                        
 
 def parse_opts(argv=None):
     if argv is None:
@@ -119,18 +135,7 @@ def application(environ, start_response):
     be supported some day.  we'll need to set up an AMQP task queue
     and related magic for that to happen, though. """
     cherrypy.config.update({'environment': 'embedded'})
-
     setup = parse_opts(argv=['-C', environ['config']])
     root = Core(setup, start_fam_thread=True)
     cherrypy.tree.mount(root)
     return cherrypy.tree(environ, start_response)
-
-if __name__ == "__main__":
-    setup = parse_opts()
-
-    root = Core(setup, start_fam_thread=True)
-    config = {'global': {'engine.autoreload.on': False,
-                         'log.screen': True}}
-
-    cherrypy.quickstart(root, config=config)
-

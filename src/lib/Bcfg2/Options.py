@@ -419,6 +419,10 @@ SERVER_PROTOCOL = \
     Option('Server Protocol',
            default='xmlrpc/ssl',
            cf=('communication', 'procotol'))
+SERVER_BACKEND = \
+    Option('Server Backend',
+           default='best',
+           cf=('server', 'backend'))
 
 # Client options
 CLIENT_KEY = \
@@ -814,7 +818,8 @@ SERVER_COMMON_OPTIONS = dict(repo=SERVER_REPOSITORY,
                              key=SERVER_KEY,
                              cert=SERVER_CERT,
                              ca=SERVER_CA,
-                             protocol=SERVER_PROTOCOL)
+                             protocol=SERVER_PROTOCOL,
+                             backend=SERVER_BACKEND)
 
 CRYPT_OPTIONS = dict(encrypt=ENCRYPT,
                      decrypt=DECRYPT,

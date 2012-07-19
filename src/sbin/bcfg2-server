@@ -2,10 +2,9 @@
 
 """The XML-RPC Bcfg2 server."""
 
-import logging
-import os.path
+import os
 import sys
-
+import logging
 import Bcfg2.Logger
 import Bcfg2.Options
 import Bcfg2.Server.Plugins.Metadata
@@ -20,13 +19,30 @@ if __name__ == '__main__':
     optinfo.update(Bcfg2.Options.DAEMON_COMMON_OPTIONS)
     setup = Bcfg2.Options.OptionParser(optinfo)
     setup.parse(sys.argv[1:])
-    # todo: import the correct core object according to setup
-    from Bcfg2.Server.CPCore import Core
+    # check whether the specified bcfg2.conf exists
+    if not os.path.exists(setup['configfile']):
+        print("Could not read %s" % setup['configfile'])
+        sys.exit(1)
+    
+    if setup['backend'] not in ['best', 'cherrypy', 'builtin']:
+        print("Unknown server backend %s, using 'best'" % setup['backend'])
+        setup['backend'] = 'best'
+    if setup['backend'] == 'best':
+        try:
+            from Bcfg2.Server.CherryPyCore import Core
+        except ImportError:
+            from Bcfg2.Server.BuiltinCore import Core
+    elif setup['backend'] == 'cherrypy':
+        try:
+            from Bcfg2.Server.CherryPyCore import Core
+        except ImportError:
+            err = sys.exc_info()[1]
+            print("Unable to import CherryPy server core: %s" % err)
+            raise
+    elif setup['backend'] == 'builtin':
+        from Bcfg2.Server.BuiltinCore import Core
+
     try:
-        # check whether the specified bcfg2.conf exists
-        if not os.path.exists(setup['configfile']):
-            print("Could not read %s" % setup['configfile'])
-            sys.exit(1)
         core = Core(setup, start_fam_thread=True)
         core.run()
     except CoreInitError:
