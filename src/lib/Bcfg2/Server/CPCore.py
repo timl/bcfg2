@@ -3,16 +3,12 @@
 import sys
 import base64
 import atexit
-import inspect
 import cherrypy
-import Bcfg2.Logger
 import Bcfg2.Options
 from Bcfg2.Bcfg2Py3k import urlparse, xmlrpclib
 from Bcfg2.Server.Core import BaseCore
 from cherrypy.lib import xmlrpcutil
 from cherrypy._cptools import ErrorTool
-
-cherrypy.config.update({'environment': 'embedded'})
 
 if cherrypy.engine.state == 0:
     cherrypy.engine.start(blocking=False)
@@ -106,31 +102,31 @@ class Core(BaseCore):
         return cherrypy.serving.response.body
 
 
-def application(environ, start_response):
+def parse_opts(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
     optinfo = dict()
     optinfo.update(Bcfg2.Options.CLI_COMMON_OPTIONS)
     optinfo.update(Bcfg2.Options.SERVER_COMMON_OPTIONS)
     optinfo.update(Bcfg2.Options.DAEMON_COMMON_OPTIONS)
-    setup = Bcfg2.Options.OptionParser(optinfo)
-    setup.parse(['-C', environ['config']])
+    setup = Bcfg2.Options.OptionParser(optinfo, argv=argv)
+    setup.parse(argv)
+    return setup
 
-    root = Core(setup['repo'], setup['plugins'],
-                setup['password'], setup['encoding'],
-                ca=setup['ca'],
-                filemonitor=setup['filemonitor'],
-                start_fam_thread=True,
-                setup=setup)
-    app = cherrypy.tree.mount(root)
+def application(environ, start_response):
+    """ running behind Apache as a WSGI app is not currently
+    supported, but I'm keeping this code here because I hope for it to
+    be supported some day.  we'll need to set up an AMQP task queue
+    and related magic for that to happen, though. """
+    cherrypy.config.update({'environment': 'embedded'})
 
+    setup = parse_opts(argv=['-C', environ['config']])
+    root = Core(setup, start_fam_thread=True)
+    cherrypy.tree.mount(root)
     return cherrypy.tree(environ, start_response)
 
 if __name__ == "__main__":
-    optinfo = dict()
-    optinfo.update(Bcfg2.Options.CLI_COMMON_OPTIONS)
-    optinfo.update(Bcfg2.Options.SERVER_COMMON_OPTIONS)
-    optinfo.update(Bcfg2.Options.DAEMON_COMMON_OPTIONS)
-    setup = Bcfg2.Options.OptionParser(optinfo)
-    setup.parse(sys.argv[1:])
+    setup = parse_opts()
 
     root = Core(setup, start_fam_thread=True)
     config = {'global': {'engine.autoreload.on': False,

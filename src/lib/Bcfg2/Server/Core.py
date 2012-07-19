@@ -494,12 +494,6 @@ class BaseCore(object):
             err = sys.exc_info()[1]
             self.critical_error("Unable to set version for %s: %s" %
                                 (client, err))
-        print "End of DeclareVersion(%s, %s)" % (address, version)
-        if self.fam.clientwatch:
-            if self.fam.clientwatch in self.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.fam.clientwatch
         return True
 
     @exposed

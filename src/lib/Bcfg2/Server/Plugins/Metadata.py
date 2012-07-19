@@ -94,12 +94,6 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
 
     def write_xml(self, fname, xmltree):
         """Write changes to xml back to disk."""
-        print "write_xml(%s, ...)" % (fname,)
-        if self.fam.clientwatch:
-            if self.fam.clientwatch in self.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.fam.clientwatch
         tmpfile = "%s.new" % fname
         try:
             datafile = open(tmpfile, 'w')
@@ -107,12 +101,6 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
             msg = "Failed to write %s: %s" % (tmpfile, sys.exc_info()[1])
             self.logger.error(msg)
             raise MetadataRuntimeError(msg)
-        print "opened tmpfile %s" % (tmpfile,)
-        if self.fam.clientwatch:
-            if self.fam.clientwatch in self.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.fam.clientwatch
         # prep data
         dataroot = xmltree.getroot()
         newcontents = lxml.etree.tostring(dataroot, pretty_print=True)
@@ -129,20 +117,7 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
             self.logger.error(msg, exc_info=1)
             os.unlink(tmpfile)
             raise MetadataRuntimeError(msg)
-        print "wrote data to tmpfile %s (fd %s)" % (tmpfile, fd)
-        if self.fam.clientwatch:
-            if self.fam.clientwatch in self.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.fam.clientwatch
         datafile.close()
-        print "closed tmpfile %s" % (tmpfile,)
-        if self.fam.clientwatch:
-            if self.fam.clientwatch in self.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.fam.clientwatch
-
         # check if clients.xml is a symlink
         if os.path.islink(fname):
             fname = os.readlink(fname)
@@ -155,12 +130,6 @@ class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
                                                          sys.exc_info()[1])
             self.logger.error(msg)
             raise MetadataRuntimeError(msg)
-        print "renamed %s to %s" % (tmpfile, fname)
-        if self.fam.clientwatch:
-            if self.fam.clientwatch in self.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.fam.clientwatch
 
     def find_xml_for_xpath(self, xpath):
         """Find and load xml file containing the xpath query"""
@@ -376,12 +345,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                                attribs=attribs, alias=True)
 
     def _update_xdata(self, config, tag, name, attribs, alias=False):
-        print "_update_xdata(%s, %s, %s, %s, alias=%s)" % (config, tag, name, attribs, alias)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         node = self._search_xdata(tag, name, config.xdata, alias=alias)
         if node == None:
             msg = "%s \"%s\" does not exist" % (tag, name)
@@ -395,12 +358,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             raise MetadataConsistencyError(msg)
         for key, val in list(attribs.items()):
             xdict['xquery'][0].set(key, val)
-        print "About to write XML"
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         config.write_xml(xdict['filename'], xdict['xmltree'])
 
     def update_group(self, group_name, attribs):
@@ -409,12 +366,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def update_client(self, client_name, attribs):
         """Update a clients attributes."""
-        print "update_client(%s, %s)" % (client_name, attribs)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         return self._update_xdata(self.clients_xml, "Client", client_name,
                                   attribs, alias=True)
 
@@ -604,12 +555,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def set_version(self, client, version):
         """Set group parameter for provided client."""
-        print "set_version(%s, %s)" % (client, version)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         self.logger.info("Setting client %s version to %s" % (client, version))
         if client in self.clients:
             self.logger.info("Setting version on client %s to %s" %
@@ -624,13 +569,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def resolve_client(self, addresspair, cleanup_cache=False):
         """Lookup address locally or in DNS to get a hostname."""
-        print "resolve_client(%s, cleanup_cache=%s)" % (addresspair, cleanup_cache)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
-
         if addresspair in self.session_cache:
             # client _was_ cached, so there can be some expired
             # entries. we need to clean them up to avoid potentially
@@ -673,12 +611,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def get_initial_metadata(self, client):
         """Return the metadata for a given client."""
-        print "get_initial_metadata(%s)" % (client,)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         if False in list(self.states.values()):
             raise MetadataRuntimeError("Metadata has not been read yet")
         client = client.lower()
@@ -746,12 +678,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         return [md.hostname for md in mdata if md.groups.issuperset(groups)]
 
     def merge_additional_groups(self, imd, groups):
-        print "merge_additional_groups(%s, %s)" % (imd, groups)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         for group in groups:
             if (group in self.categories and
                 self.categories[group] in imd.categories):
@@ -776,12 +702,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     imd.groups.add(newgroup)
 
     def merge_additional_data(self, imd, source, data):
-        print "merge_additional_data(%s, %s, ...)" % (imd, source)
-        if self.core.fam.clientwatch:
-            if self.core.fam.clientwatch in self.core.fam.wm.watches:
-                print "Still watching clients.xml with wd=%s" % self.core.fam.clientwatch
-            else:
-                print "clients.xml watcher %s has disappeared!" % self.core.fam.clientwatch
         if not hasattr(imd, source):
             setattr(imd, source, data)
             imd.connectors.append(source)

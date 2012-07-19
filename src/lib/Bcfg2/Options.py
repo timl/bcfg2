@@ -252,14 +252,6 @@ HELP = \
     Option('Print this usage message',
            default=False,
            cmd='-h')
-DEBUG = \
-    Option("Enable debugging output",
-           default=False,
-           cmd='-d')
-VERBOSE = \
-    Option("Enable verbose output",
-           default=False,
-           cmd='-v')
 DAEMON = \
     Option("Daemonize process, storing pid",
            default=None,
@@ -741,6 +733,18 @@ LOGGING_FILE_PATH = \
            cmd='-o',
            odesc='<path>',
            cf=('logging', 'path'))
+DEBUG = \
+    Option("Enable debugging output",
+           default=False,
+           cmd='-d',
+           cook=get_bool,
+           cf=('logging', 'debug'))
+VERBOSE = \
+    Option("Enable verbose output",
+           default=False,
+           cmd='-v',
+           cook=get_bool,
+           cf=('logging', 'verbose'))
 
 # Plugin-specific options
 CFG_VALIDATION = \
@@ -889,9 +893,11 @@ class OptionParser(OptionSet):
        OptionParser bootstraps option parsing,
        getting the value of the config file
     """
-    def __init__(self, args):
+    def __init__(self, args, argv=None):
+        if argv is None:
+            argv = sys.argv[1:]
         self.Bootstrap = OptionSet([('configfile', CFILE)], quiet=True)
-        self.Bootstrap.parse(sys.argv[1:], do_getopt=False)
+        self.Bootstrap.parse(argv, do_getopt=False)
         OptionSet.__init__(self, args, configfile=self.Bootstrap['configfile'])
         self.optinfo = copy.copy(args)
 
