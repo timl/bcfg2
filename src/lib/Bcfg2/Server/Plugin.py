@@ -149,8 +149,7 @@ class Plugin(Debuggable):
 
     @classmethod
     def init_repo(cls, repo):
-        path = os.path.join(repo, cls.name)
-        os.makedirs(path)
+        os.makedirs(os.path.join(repo, cls.name))
 
     def shutdown(self):
         self.running = False
@@ -663,7 +662,7 @@ class XMLFileBacked(FileBacked):
 
     def add_monitor(self, fpath, fname):
         self.extras.append(fname)
-        if self.fam:
+        if self.fam and self.should_monitor:
             self.fam.AddMonitor(fpath, self)
 
     def __iter__(self):

@@ -283,6 +283,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
         self.addresses = {}
         self.auth = dict()
+        # mapping of clientname -> [groups]
         self.clientgroups = {}
         # list of clients
         self.clients = []
@@ -294,7 +295,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         self.negated_groups = dict()
         # mapping of hostname -> version string
         self.versions = dict()
-        self.categories = {}
         self.uuid = {}
         self.secure = []
         self.floating = []
@@ -312,9 +312,10 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     @classmethod
     def init_repo(cls, repo, **kwargs):
-        Bcfg2.Server.Plugin.Metadata.init_repo(cls, repo)
+        # must use super here; inheritance works funny with class methods
+        super(Metadata, cls).init_repo(repo)
 
-        for fname in self.__files__:
+        for fname in cls.__files__:
             aname = re.sub(r'[^A-z0-9_]', '_', fname)
             if aname in kwargs:
                 open(os.path.join(repo, cls.name, fname),
@@ -562,6 +563,8 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     self.groups[gname]
             else:
                 if self.groups[gname].category and gname in self.groups:
+                    category = self.groups[gname].category
+
                     def in_cat(client, groups, categories):
                         if category in categories:
                             self.logger.warning("%s: Group %s suppressed by "
@@ -620,6 +623,33 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             self.logger.error(msg)
             raise MetadataConsistencyError(msg)
         self._set_profile(client, profile, addresspair)
+
+    def _set_profile(self, client, profile, addresspair):
+        if client in self.clients:
+            profiles = [g for g in self.clientgroups[client]
+                        if g in self.groups and self.groups[g].is_profile]
+            self.logger.info("Changing %s profile from %s to %s" %
+                             (client, profiles, profile))
+            self.update_client(client, dict(profile=profile))
+            if client in self.clientgroups:
+                for p in profiles:
+                    self.clientgroups[client].remove(p)
+                self.clientgroups[client].append(profile)
+            else:
+                self.clientgroups[client] = [profile]
+        else:
+            self.logger.info("Creating new client: %s, profile %s" %
+                             (client, profile))
+            if addresspair in self.session_cache:
+                # we are working with a uuid'd client
+                self.add_client(self.session_cache[addresspair][1],
+                                dict(uuid=client, profile=profile,
+                                     address=addresspair[0]))
+            else:
+                self.add_client(client, dict(profile=profile))
+            self.clients.append(client)
+            self.clientgroups[client] = [profile]
+        self.clients_xml.write()
 
     def set_version(self, client, version):
         """Set group parameter for provided client."""
@@ -681,7 +711,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         """ set group membership based on the contents of groups.xml
         and initial group membership of this client. Returns a tuple
         of (allgroups, categories)"""
-        numgroups = 0 # force one initial pass
+        numgroups = -1 # force one initial pass
         while numgroups != len(groups):
             numgroups = len(groups)
             if categories is None:
@@ -786,33 +816,34 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             if len(profiles) >= 1:
                 profile = profiles[0]
 
-        md = ClientMetadata(client, profile, newgroups, newbundles, aliases,
-                            addresses, newcategories, uuid, password, version,
+        return ClientMetadata(client, profile, groups, bundles, aliases,
+                            addresses, categories, uuid, password, version,
                             self.query)
-        self._merge_options(md)
-        return md
 
     def get_all_group_names(self):
         all_groups = set()
-        for grp in self.groups.values():
-            all_groups.update(grp.groups)
+        all_groups.update(self.groups.keys())
+        all_groups.update([g.name for g in self.group_membership.values()])
+        all_groups.update([g.name for g in self.negated_groups.keys()])
         for grp in self.clientgroups.values():
             all_groups.update(grp)
         return all_groups
 
     def get_all_groups_in_category(self, category):
-        all_groups = set()
-        [all_groups.add(g) for g in self.categories
-         if self.categories[g] == category]
-        return all_groups
+        return set([g.name for g in self.groups.values()
+                    if g.category == category])
 
     def get_client_names_by_profiles(self, profiles):
-        return [c for c, g in self.clientgroups.items()
-                if set(g) & set(profiles)]
+        rv = []
+        for client in list(self.clients):
+            mdata = self.get_initial_metadata(client)
+            if mdata.profile in profiles:
+                rv.append(client)
+        return rv
 
     def get_client_names_by_groups(self, groups):
         mdata = [self.core.build_metadata(client)
-                 for client in list(self.clients.keys())]
+                 for client in list(self.clients)]
         return [md.hostname for md in mdata if md.groups.issuperset(groups)]
 
     def get_client_names_by_bundles(self, bundles):
@@ -824,12 +855,15 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         for group in groups:
             if group in imd.groups or group not in self.groups:
                 continue
-            if self.groups[group].category in imd.categories:
-                self.logger.warning("%s: Group %s suppressed by category %s; "
-                                    "%s already a member of %s" %
-                                    (self.name, gname, imd.hostname, category,
-                                     categories[category]))
-                continue
+            category = self.groups[group].category
+            if category:
+                if self.groups[group].category in imd.categories:
+                    self.logger.warning("%s: Group %s suppressed by category %s;"
+                                        "%s already a member of %s" %
+                                        (self.name, group, category,
+                                         imd.hostname, imd.categories[category]))
+                    continue
+                imd.categories[group] = category
             imd.groups.add(group)
 
         self._merge_groups(imd.hostname, imd.groups,
