@@ -1,8 +1,7 @@
 import os
 import sys
-
+from UserDict import DictMixin
 from django.db import models
-
 import Bcfg2.Server.Lint
 import Bcfg2.Server.Plugin
 from Bcfg2.Server.Plugins.Metadata import *
@@ -10,6 +9,28 @@ from Bcfg2.Server.Plugins.Metadata import *
 class MetadataClientModel(models.Model,
                           Bcfg2.Server.Plugin.PluginDatabaseModel):
     hostname = models.CharField(max_length=255)
+    version = models.CharField(max_length=31, null=True)
+
+
+class ClientVersions(DictMixin):
+    def __getitem__(self, key):
+        client = MetadataClientModel(hostname=key)
+        return client.version
+
+    def __setitem__(self, key, value):
+        client = MetadataClientModel(hostname=key)
+        client.version = value
+        client.save()
+
+    def keys(self):
+        return [c.hostname for c in MetadataClientModel.objects.all()]
+
+    def __contains__(self, key):
+        try:
+            client = MetadataClientModel(hostname=key)
+            return True
+        except DoesNotExist:
+            return False
 
 
 class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
@@ -22,6 +43,7 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
             self.logger.warning("DBMetadata: clients.xml found, parsing in "
                                 "compatibility mode")
             self._handle_file("clients.xml")
+        self.versions = ClientVersions()
 
     def add_group(self, group_name, attribs):
         msg = "DBMetadata does not support adding groups"

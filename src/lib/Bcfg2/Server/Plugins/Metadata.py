@@ -15,8 +15,6 @@ import Bcfg2.Server.FileMonitor
 import Bcfg2.Server.Plugin
 from Bcfg2.version import Bcfg2VersionInfo
 
-from django.db import models
-
 def locked(fd):
     """Aquire a lock on a file"""
     try:
@@ -291,9 +289,11 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         self.aliases = {}
         # mapping of groupname -> MetadataGroup object
         self.groups = {}
-        # mapping of predicate -> MetadataGroup object
+        # mappings of predicate -> MetadataGroup object
         self.group_membership = dict()
-        self.versions = {}
+        self.negated_groups = dict()
+        # mapping of hostname -> version string
+        self.versions = dict()
         self.categories = {}
         self.uuid = {}
         self.secure = []
@@ -532,22 +532,36 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                 self.default = grp.get('name')
 
         self.group_membership = dict()
+        self.negated_groups = dict()
+        self.options = dict()
         # confusing loop condition; the XPath query asks for all
         # elements under a Group tag under a Groups tag; that is
         # infinitely recursive, so "all" elements really means _all_
         # elements.  We then manually filter out non-Group elements
         # since there doesn't seem to be a way to get Group elements
         # of arbitrary depth with particular ultimate ancestors in
-        # XPath
-        for group in self.groups_xml.xdata.xpath("//Groups/Group/*"):
-            if group.tag != 'Group' or group.getchildren():
+        # XPath.  We do the same thing for Client tags.
+        for el in self.groups_xml.xdata.xpath("//Groups/Group/*") + \
+                self.groups_xml.xdata.xpath("//Groups/Client/*"):
+            if ((el.tag != 'Group' and el.tag != 'Client' and
+                 el.tag != 'Options') or
+                el.getchildren()):
                 continue
 
-            gname = group.get("name")
             conditions = []
-            if gname in self.groups:
-                category = self.groups[gname].category
-                if category:
+            for parent in el.iterancestors():
+                cond = get_condition(parent)
+                if cond:
+                    conditions.append(cond)
+
+            gname = el.get("name")
+            if el.tag == 'Options':
+                self.options[aggregate_conditions(conditions)] = el
+            elif el.get("negate", "false").lower() == "true":
+                self.negated_groups[aggregate_conditions(conditions)] = \
+                    self.groups[gname]
+            else:
+                if self.groups[gname].category and gname in self.groups:
                     def in_cat(client, groups, categories):
                         if category in categories:
                             self.logger.warning("%s: Group %s suppressed by "
@@ -559,13 +573,8 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                         return True
                     conditions.append(in_cat)
 
-            for parent in group.iterancestors():
-                cond = get_condition(parent)
-                if cond:
-                    conditions.append(cond)
-
-            self.group_membership[aggregate_conditions(conditions)] = \
-                self.groups[gname]
+                self.group_membership[aggregate_conditions(conditions)] = \
+                    self.groups[gname]
         self.states['groups.xml'] = True
 
     def HandleEvent(self, event):
@@ -611,33 +620,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             self.logger.error(msg)
             raise MetadataConsistencyError(msg)
         self._set_profile(client, profile, addresspair)
-
-    def _set_profile(self, client, profile, addresspair):
-        if client in self.clients:
-            profiles = [g for g in self.clientgroups[client]
-                        if g in self.groups and self.groups[g].is_profile]
-            self.logger.info("Changing %s profile from %s to %s" %
-                             (client, profiles, profile))
-            self.update_client(client, dict(profile=profile))
-            if client in self.clientgroups:
-                for p in profiles:
-                    self.clientgroups[client].remove(p)
-                self.clientgroups[client].append(profile)
-            else:
-                self.clientgroups[client] = [profile]
-        else:
-            self.logger.info("Creating new client: %s, profile %s" %
-                             (client, profile))
-            if addresspair in self.session_cache:
-                # we are working with a uuid'd client
-                self.add_client(self.session_cache[addresspair][1],
-                                dict(uuid=client, profile=profile,
-                                     address=addresspair[0]))
-            else:
-                self.add_client(client, dict(profile=profile))
-            self.clients.append(client)
-            self.clientgroups[client] = [profile]
-        self.clients_xml.write()
 
     def set_version(self, client, version):
         """Set group parameter for provided client."""
@@ -696,9 +678,9 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             raise MetadataConsistencyError(warning)
 
     def _merge_groups(self, client, groups, categories=None):
-        """ parse groups.xml and set group membership based on the
-        contents of group.xml and initial group membership of this
-        client. Returns a tuple of (allgroups, categories) """
+        """ set group membership based on the contents of groups.xml
+        and initial group membership of this client. Returns a tuple
+        of (allgroups, categories)"""
         numgroups = 0 # force one initial pass
         while numgroups != len(groups):
             numgroups = len(groups)
@@ -711,6 +693,13 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     groups.add(group.name)
                     if group.category:
                         categories[group.category] = group.name
+            for predicate, group in self.negated_groups.items():
+                if group.name not in groups:
+                    continue
+                if predicate(client, groups, categories):
+                    groups.remove(group.name)
+                    if group.category:
+                        del categories[group.category]
         return (groups, categories)
 
     def get_initial_metadata(self, client):
@@ -797,9 +786,11 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             if len(profiles) >= 1:
                 profile = profiles[0]
 
-        return ClientMetadata(client, profile, newgroups, newbundles, aliases,
-                              addresses, newcategories, uuid, password, version,
-                              self.query)
+        md = ClientMetadata(client, profile, newgroups, newbundles, aliases,
+                            addresses, newcategories, uuid, password, version,
+                            self.query)
+        self._merge_options(md)
+        return md
 
     def get_all_group_names(self):
         all_groups = set()

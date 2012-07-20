@@ -103,10 +103,10 @@ class BaseCore(object):
 
         # generate Django ORM settings.  this must be done _before_ we
         # load plugins
-        Bcfg2.settings.read_config(cfile=cfile, repo=repo)
+        Bcfg2.settings.read_config(cfile=self.cfile, repo=self.datastore)
 
-        if '' in plugins:
-            plugins.remove('')
+        if '' in setup['plugins']:
+            setup['plugins'].remove('')
 
         for plugin in setup['plugins']:
             if not plugin in self.plugins:
@@ -240,13 +240,8 @@ class BaseCore(object):
                 plugin.validate_structures(metadata, data)
             except Bcfg2.Server.Plugin.ValidationError:
                 err = sys.exc_info()[1]
-<<<<<<< HEAD
                 self.logger.error("Plugin %s structure validation failed: %s" %
                                   (plugin.name, err))
-=======
-                logger.error("Plugin %s structure validation failed: %s" %
-                             (plugin.name, err.message))
->>>>>>> checkpoint
                 raise
             except:
                 self.logger.error("Plugin %s: unexpected structure validation "
