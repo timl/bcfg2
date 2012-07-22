@@ -26,12 +26,13 @@
         </xsd:complexType>
       </xsd:element>
     </xsd:choice>
-    <xsd:attribute type='xsd:string' name='auth' use='optional'/>
     <xsd:attribute type='xsd:string' name='uuid'/>
+    <xsd:attribute type='xsd:string' name='address'/>
+
+    <xsd:attribute type='xsd:string' name='auth' use='optional'/>
     <xsd:attribute type='xsd:string' name='password'/>
     <xsd:attribute type='xsd:string' name='location'/>
     <xsd:attribute type='xsd:string' name='secure'/>
-    <xsd:attribute type='xsd:string' name='address'/>
   </xsd:complexType>
 
   <xsd:complexType name='groupType'>

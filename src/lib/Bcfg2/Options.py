@@ -925,12 +925,15 @@ class OptionParser(OptionSet):
        OptionParser bootstraps option parsing,
        getting the value of the config file
     """
-    def __init__(self, args, argv=None):
+    def __init__(self, args, argv=None, quiet=False):
         if argv is None:
             argv = sys.argv[1:]
+        # the bootstrap is always quiet, since it's running with a
+        # default config file and so might produce warnings otherwise
         self.Bootstrap = OptionSet([('configfile', CFILE)], quiet=True)
         self.Bootstrap.parse(argv, do_getopt=False)
-        OptionSet.__init__(self, args, configfile=self.Bootstrap['configfile'])
+        OptionSet.__init__(self, args, configfile=self.Bootstrap['configfile'],
+                           quiet=quiet)
         self.optinfo = copy.copy(args)
 
     def HandleEvent(self, event):

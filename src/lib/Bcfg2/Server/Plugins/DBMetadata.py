@@ -117,3 +117,7 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
         # understood, but it does _not_ assert client existence.
         Metadata._handle_clients_xml_event(self, event)
         self.clients = self.list_clients()
+
+
+class DBMetadataLint(MetadataLint):
+    pass

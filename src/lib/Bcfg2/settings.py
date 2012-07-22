@@ -12,7 +12,7 @@ DATABASE_PASSWORD = None
 DATABASE_HOST = None
 DATABASE_PORT = None
 
-def read_config(cfile='/etc/bcfg2.conf', repo=None):
+def read_config(cfile='/etc/bcfg2.conf', repo=None, quiet=False):
     global DATABASE_ENGINE, DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD, \
         DATABASE_HOST, DATABASE_PORT
 
@@ -24,7 +24,8 @@ def read_config(cfile='/etc/bcfg2.conf', repo=None):
                                         db_user=Bcfg2.Options.DB_USER,
                                         db_password=Bcfg2.Options.DB_PASSWORD,
                                         db_host=Bcfg2.Options.DB_HOST,
-                                        db_port=Bcfg2.Options.DB_PORT))
+                                        db_port=Bcfg2.Options.DB_PORT),
+                                   quiet=quiet)
     setup.parse([Bcfg2.Options.CFILE.cmd, cfile])
 
     if repo is None:
@@ -48,7 +49,7 @@ def read_config(cfile='/etc/bcfg2.conf', repo=None):
 
 # initialize settings from /etc/bcfg2.conf, or set up basic defaults.
 # this lets manage.py work in all cases
-read_config()
+read_config(quiet=True)
 
 if django.VERSION[0] == 1 and django.VERSION[1] > 2:
     TIME_ZONE = None

@@ -11,8 +11,9 @@ import socket
 import sys
 import time
 import Bcfg2.Server
-import Bcfg2.Server.FileMonitor
+import Bcfg2.Server.Lint
 import Bcfg2.Server.Plugin
+import Bcfg2.Server.FileMonitor
 from Bcfg2.version import Bcfg2VersionInfo
 
 def locked(fd):
@@ -282,12 +283,14 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             self._handle_file(fname)
 
         self.addresses = {}
+        self.raddresses = {}
         self.auth = dict()
         # mapping of clientname -> [groups]
         self.clientgroups = {}
         # list of clients
         self.clients = []
         self.aliases = {}
+        self.raliases = {}
         # mapping of groupname -> MetadataGroup object
         self.groups = {}
         # mappings of predicate -> MetadataGroup object
@@ -542,8 +545,8 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         # since there doesn't seem to be a way to get Group elements
         # of arbitrary depth with particular ultimate ancestors in
         # XPath.  We do the same thing for Client tags.
-        for el in self.groups_xml.xdata.xpath("//Groups/Group/*") + \
-                self.groups_xml.xdata.xpath("//Groups/Client/*"):
+        for el in self.groups_xml.xdata.xpath("//Groups/Group//*") + \
+                self.groups_xml.xdata.xpath("//Groups/Client//*"):
             if ((el.tag != 'Group' and el.tag != 'Client' and
                  el.tag != 'Options') or
                 el.getchildren()):
@@ -712,10 +715,10 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         and initial group membership of this client. Returns a tuple
         of (allgroups, categories)"""
         numgroups = -1 # force one initial pass
+        if categories is None:
+            categories = dict()
         while numgroups != len(groups):
             numgroups = len(groups)
-            if categories is None:
-                categories = dict()
             for predicate, group in self.group_membership.items():
                 if group.name in groups:
                     continue
@@ -817,14 +820,14 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                 profile = profiles[0]
 
         return ClientMetadata(client, profile, groups, bundles, aliases,
-                            addresses, categories, uuid, password, version,
-                            self.query)
+                              addresses, categories, uuid, password, version,
+                              self.query)
 
     def get_all_group_names(self):
         all_groups = set()
         all_groups.update(self.groups.keys())
         all_groups.update([g.name for g in self.group_membership.values()])
-        all_groups.update([g.name for g in self.negated_groups.keys()])
+        all_groups.update([g.name for g in self.negated_groups.values()])
         for grp in self.clientgroups.values():
             all_groups.update(grp)
         return all_groups
@@ -858,10 +861,11 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
             category = self.groups[group].category
             if category:
                 if self.groups[group].category in imd.categories:
-                    self.logger.warning("%s: Group %s suppressed by category %s;"
-                                        "%s already a member of %s" %
+                    self.logger.warning("%s: Group %s suppressed by category "
+                                        "%s; %s already a member of %s" %
                                         (self.name, group, category,
-                                         imd.hostname, imd.categories[category]))
+                                         imd.hostname,
+                                         imd.categories[category]))
                     continue
                 imd.categories[group] = category
             imd.groups.add(group)
@@ -890,8 +894,8 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                                (client, address))
                 return True
             else:
-                self.logger.error("Got request for non-float client %s from %s" %
-                                  (client, address))
+                self.logger.error("Got request for non-float client %s from %s"
+                                  % (client, address))
                 return False
         resolved = self.resolve_client(addresspair)
         if resolved.lower() == client.lower():
@@ -1075,3 +1079,20 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                 viz_str.append('"%s" [label="%s", shape="record", style="filled", fillcolor="%s"];' %
                                (category, category, categories[category]))
         return "\n".join("\t" + s for s in viz_str)
+
+
+class MetadataLint(Bcfg2.Server.Lint.ServerPlugin):
+    def Run(self):
+        self.nested_cleints()
+        self.uses_options()
+
+    @classmethod
+    def Errors(cls):
+        return {"nested-client-tags": "warning"}
+
+    def nested_clients(self):
+        groupdata = self.metadata.groups_xml.xdata
+        for el in groupdata.xpath("//Client//Client"):
+            self.LintError("nested-client-tags",
+                           "Client %s nested within Client tag: %s" %
+                           (el.get("name"), self.RenderXML(el)))
