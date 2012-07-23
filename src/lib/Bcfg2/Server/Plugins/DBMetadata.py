@@ -8,7 +8,7 @@ from Bcfg2.Server.Plugins.Metadata import *
 
 class MetadataClientModel(models.Model,
                           Bcfg2.Server.Plugin.PluginDatabaseModel):
-    hostname = models.CharField(max_length=255)
+    hostname = models.CharField(max_length=255, primary_key=True)
     version = models.CharField(max_length=31, null=True)
 
 
@@ -29,7 +29,7 @@ class ClientVersions(DictMixin):
         try:
             client = MetadataClientModel(hostname=key)
             return True
-        except DoesNotExist:
+        except MetadataClientModel.DoesNotExist:
             return False
 
 
@@ -79,7 +79,7 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
 
     def list_clients(self):
         """ List all clients in client database """
-        return [c.hostname for c in MetadataClientModel.objects.all()]
+        return set([c.hostname for c in MetadataClientModel.objects.all()])
 
     def remove_group(self, group_name, attribs):
         msg = "DBMetadata does not support removing groups"
@@ -94,10 +94,11 @@ class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
     def remove_client(self, client_name):
         """Remove a client"""
         try:
-            client = MetadataClientModel.objects.get(name=client_name)
-        except DoesNotExist:
-            logger.warning("Client %s does not exist" % client_name)
-            return
+            client = MetadataClientModel.objects.get(hostname=client_name)
+        except MetadataClientModel.DoesNotExist:
+            msg = "Client %s does not exist" % client_name
+            self.logger.warning(msg)
+            raise MetadataConsistencyError(msg)
         client.delete()
         self.clients = self.list_clients()
 

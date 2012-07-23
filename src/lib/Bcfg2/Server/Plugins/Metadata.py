@@ -838,8 +838,11 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def get_client_names_by_profiles(self, profiles):
         rv = []
+        print "clients=%s" % self.clients
         for client in list(self.clients):
+            print "generating profile for %s" % client
             mdata = self.get_initial_metadata(client)
+            print "got initial metadata; profile=%s" % mdata.profile
             if mdata.profile in profiles:
                 rv.append(client)
         return rv

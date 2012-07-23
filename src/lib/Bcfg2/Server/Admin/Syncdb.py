@@ -24,6 +24,8 @@ class Syncdb(Bcfg2.Server.Admin.Mode):
         Bcfg2.settings.read_config(cfile=self.opts['configfile'],
                                    repo=self.opts['repo'])
         setup_environ(Bcfg2.settings)
+        import Bcfg2.Server.models
+        Bcfg2.Server.models.load_models(cfile=self.opts['configfile'])
 
         from django.core.management.commands import syncdb
 

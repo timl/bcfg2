@@ -611,10 +611,11 @@ class TestMetadata(unittest.TestCase):
     @patch("Bcfg2.Server.Plugins.Metadata.Metadata._set_profile")
     def test_set_profile(self, mock_set_profile):
         metadata = self.get_metadata_object()
-        metadata.states['clients.xml'] = False
-        self.assertRaises(MetadataRuntimeError,
-                          metadata.set_profile,
-                          None, None, None)
+        if 'clients.xml' in metadata.states:
+            metadata.states['clients.xml'] = False
+            self.assertRaises(MetadataRuntimeError,
+                              metadata.set_profile,
+                              None, None, None)
 
         self.load_groups_data(metadata=metadata)
         self.load_clients_data(metadata=metadata)
@@ -704,9 +705,10 @@ class TestMetadata(unittest.TestCase):
     @patch("Bcfg2.Server.Plugins.Metadata.ClientMetadata")
     def test_get_initial_metadata(self, mock_clientmetadata):
         metadata = self.get_metadata_object()
-        metadata.states['clients.xml'] = False
-        self.assertRaises(MetadataRuntimeError,
-                          metadata.get_initial_metadata, None)
+        if 'clients.xml' in metadata.states:
+            metadata.states['clients.xml'] = False
+            self.assertRaises(MetadataRuntimeError,
+                              metadata.get_initial_metadata, None)
 
         self.load_groups_data(metadata=metadata)
         self.load_clients_data(metadata=metadata)
@@ -802,9 +804,6 @@ class TestMetadata(unittest.TestCase):
         metadata.core.build_metadata = Mock()
         metadata.core.build_metadata.side_effect = \
             lambda c: metadata.get_initial_metadata(c)
-        print "from metadata: %s" % (metadata.get_client_names_by_groups(["group2"]),)
-        print "from xml: %s" % [c.get("name")
-                                for c in clients_test_tree.findall("//Client[@profile='group2']")]
         self.assertItemsEqual(metadata.get_client_names_by_groups(["group2"]),
                               [c.get("name")
                                for c in clients_test_tree.findall("//Client[@profile='group2']")])

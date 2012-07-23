@@ -9,7 +9,7 @@ logger = logging.getLogger('Bcfg2.Server.models')
 
 MODELS = []
 
-def load_models(plugins=None, cfile='/etc/bcfg2.conf'):
+def load_models(plugins=None, cfile='/etc/bcfg2.conf', quiet=True):
     global MODELS
 
     if plugins is None:
@@ -20,7 +20,8 @@ def load_models(plugins=None, cfile='/etc/bcfg2.conf'):
         plugin_opt.default = Bcfg2.Server.Plugins.__all__
 
         setup = Bcfg2.Options.OptionParser(dict(plugins=plugin_opt,
-                                                configfile=Bcfg2.Options.CFILE))
+                                                configfile=Bcfg2.Options.CFILE),
+                                           quiet=quiet)
         setup.parse([Bcfg2.Options.CFILE.cmd, cfile])
         plugins = setup['plugins']
 
@@ -41,8 +42,14 @@ def load_models(plugins=None, cfile='/etc/bcfg2.conf'):
             try:
                 mod = __import__(plugin)
             except:
-                logger.error("Failed to load plugin %s" % (plugin))
-                continue
+                if plugins != Bcfg2.Server.Plugins.__all__:
+                    # only produce errors if the default plugin list
+                    # was not used -- i.e., if the config file was set
+                    # up.  don't produce errors when trying to load
+                    # all plugins, IOW
+                    err = sys.exc_info()[1]
+                    logger.error("Failed to load plugin %s: %s" % (plugin, err))
+                    continue
         for sym in dir(mod):
             obj = getattr(mod, sym)
             if hasattr(obj, "__bases__") and models.Model in obj.__bases__:
@@ -52,4 +59,4 @@ def load_models(plugins=None, cfile='/etc/bcfg2.conf'):
 
 # basic invocation to ensure that a default set of models is loaded,
 # and thus that this module will always work.
-load_models()
+load_models(quiet=True)
