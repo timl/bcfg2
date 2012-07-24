@@ -18,12 +18,6 @@ from Bcfg2.Server.Plugins.DBMetadata import *
 from TestMetadata import datastore, groups_test_tree, clients_test_tree, \
     TestMetadata as _TestMetadata
 
-for client in clients_test_tree.findall("Client"):
-    newclient = lxml.etree.SubElement(groups_test_tree.getroot(),
-                                      "Client", name=client.get("name"))
-    lxml.etree.SubElement(newclient, "Group", name=client.get("profile"))
-
-
 def test_syncdb():
     # create the test database
     setup_environ(Bcfg2.settings)
@@ -39,6 +33,15 @@ def test_syncdb():
 
 
 class TestDBMetadata(_TestMetadata):
+    def __init__(self, *args, **kwargs):
+        _TestMetadata.__init__(self, *args, **kwargs)
+
+        for client in self.clients_test_tree.findall("Client"):
+            newclient = lxml.etree.SubElement(self.groups_test_tree.getroot(),
+                                              "Client", name=client.get("name"))
+            lxml.etree.SubElement(newclient, "Group",
+                                  name=client.get("profile"))
+
     def load_clients_data(self, metadata=None, xdata=None):
         if metadata is None:
             metadata = get_metadata_object()
