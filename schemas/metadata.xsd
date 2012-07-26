@@ -17,24 +17,6 @@
     <xsd:attribute type='xsd:string' name='name' use='required'/>
   </xsd:complexType>
 
-  <xsd:complexType name='optionsType'>
-    <xsd:choice minOccurs='0' maxOccurs='unbounded'>
-      <xsd:element name='Alias'>
-        <xsd:complexType>
-          <xsd:attribute type='xsd:string' name='name' use='required'/>
-          <xsd:attribute type='xsd:string' name='address'/>
-        </xsd:complexType>
-      </xsd:element>
-    </xsd:choice>
-    <xsd:attribute type='xsd:string' name='uuid'/>
-    <xsd:attribute type='xsd:string' name='address'/>
-
-    <xsd:attribute type='xsd:string' name='auth' use='optional'/>
-    <xsd:attribute type='xsd:string' name='password'/>
-    <xsd:attribute type='xsd:string' name='location'/>
-    <xsd:attribute type='xsd:string' name='secure'/>
-  </xsd:complexType>
-
   <xsd:complexType name='groupType'>
     <xsd:choice minOccurs='0' maxOccurs='unbounded'>
       <xsd:element name='Bundle' type='bundleDeclaration'/>

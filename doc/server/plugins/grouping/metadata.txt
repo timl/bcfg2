@@ -85,9 +85,9 @@ Additionally, the following properties can be specified:
 | address  | Establishes an extra IP address that   | ip address     |
 |          | resolves to this client.               |                |
 +----------+----------------------------------------+----------------+
-| location | Requires requests to come from an IP   | fixed|floating |
-|          | address that matches the client        |                |
-|          | record.                                |                |
+| floating | Allows requests to come from any IP,   | true|false     |
+|          | rather than requiring requests to come |                |
+|          | from an IP associated with the client  |                |
 +----------+----------------------------------------+----------------+
 | password | Establishes a per-node password that   | String         |
 |          | can be used instead of the global      |                |
@@ -100,6 +100,9 @@ Additionally, the following properties can be specified:
 |          | be used to bypass dns-based client     |                |
 |          | resolution.                            |                |
 +----------+----------------------------------------+----------------+
+
+Floating can also be configured by setting ``location="floating"``,
+but that is deprecated.
 
 For detailed information on client authentication see
 :ref:`appendix-guides-authentication`

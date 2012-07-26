@@ -40,10 +40,10 @@ class MetadataRuntimeError(Exception):
 class XMLMetadataConfig(Bcfg2.Server.Plugin.XMLFileBacked):
     """Handles xml config files and all XInclude statements"""
     def __init__(self, metadata, watch_clients, basefile):
-        # we tell XMLFileBacked _not_ to add a monitor for this
-        # file, because the main Metadata plugin has already added
-        # one.  then we immediately set should_monitor to the proper
-        # value, so that XIinclude'd files get properly watched
+        # we tell XMLFileBacked _not_ to add a monitor for this file,
+        # because the main Metadata plugin has already added one.
+        # then we immediately set should_monitor to the proper value,
+        # so that XInclude'd files get properly watched
         fpath = os.path.join(metadata.data, basefile)
         Bcfg2.Server.Plugin.XMLFileBacked.__init__(self, fpath,
                                                    fam=metadata.core.fam,
@@ -282,9 +282,16 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         for fname in self.__files__:
             self._handle_file(fname)
 
+        # mapping of clientname -> authtype
+        self.auth = dict()
+        # list of clients required to have non-global password
+        self.secure = []
+        # list of floating clients
+        self.floating = []
+        # mapping of clientname -> password
+        self.passwords = {}
         self.addresses = {}
         self.raddresses = {}
-        self.auth = dict()
         # mapping of clientname -> [groups]
         self.clientgroups = {}
         # list of clients
@@ -299,9 +306,6 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         # mapping of hostname -> version string
         self.versions = dict()
         self.uuid = {}
-        self.secure = []
-        self.floating = []
-        self.passwords = {}
         self.session_cache = {}
         self.default = None
         self.pdirty = False
@@ -464,9 +468,10 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                                                            'cert+password')
             if 'uuid' in client.attrib:
                 self.uuid[client.get('uuid')] = clname
-            if client.get('secure', 'false') == 'true':
+            if client.get('secure', 'false').lower() == 'true':
                 self.secure.append(clname)
-            if client.get('location', 'fixed') == 'floating':
+            if (client.get('location', 'fixed') == 'floating' or
+                client.get('floating', 'false').lower() == 'true'):
                 self.floating.append(clname)
             if 'password' in client.attrib:
                 self.passwords[clname] = client.get('password')
@@ -547,8 +552,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
         # XPath.  We do the same thing for Client tags.
         for el in self.groups_xml.xdata.xpath("//Groups/Group//*") + \
                 self.groups_xml.xdata.xpath("//Groups/Client//*"):
-            if ((el.tag != 'Group' and el.tag != 'Client' and
-                 el.tag != 'Options') or
+            if ((el.tag != 'Group' and el.tag != 'Client') or
                 el.getchildren()):
                 continue
 
@@ -559,9 +563,7 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     conditions.append(cond)
 
             gname = el.get("name")
-            if el.tag == 'Options':
-                self.options[aggregate_conditions(conditions)] = el
-            elif el.get("negate", "false").lower() == "true":
+            if el.get("negate", "false").lower() == "true":
                 self.negated_groups[aggregate_conditions(conditions)] = \
                     self.groups[gname]
             else:
@@ -749,10 +751,10 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
         if client not in self.clients:
             pgroup = None
-            if self.default:
-                pgroup = self.default
-            elif client in self.clientgroups:
+            if client in self.clientgroups:
                 pgroup = self.clientgroups[client][0]
+            elif self.default:
+                pgroup = self.default
 
             if pgroup:
                 self.set_profile(client, pgroup, (None, None), force=True)
@@ -778,8 +780,8 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
                     self.logger.warning("%s: Group %s suppressed by "
                                         "category %s; %s already a member "
                                         "of %s" %
-                                        (self.name, gname, client,
-                                         category, categories[category]))
+                                        (self.name, cgroup, category,
+                                         client, categories[category]))
                     continue
                 if category:
                     categories[category] = cgroup
@@ -838,11 +840,8 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
     def get_client_names_by_profiles(self, profiles):
         rv = []
-        print "clients=%s" % self.clients
         for client in list(self.clients):
-            print "generating profile for %s" % client
             mdata = self.get_initial_metadata(client)
-            print "got initial metadata; profile=%s" % mdata.profile
             if mdata.profile in profiles:
                 rv.append(client)
         return rv
@@ -1086,12 +1085,27 @@ class Metadata(Bcfg2.Server.Plugin.Plugin,
 
 class MetadataLint(Bcfg2.Server.Lint.ServerPlugin):
     def Run(self):
-        self.nested_cleints()
-        self.uses_options()
+        self.nested_clients()
+        self.deprecated_options()
 
     @classmethod
     def Errors(cls):
-        return {"nested-client-tags": "warning"}
+        return {"nested-client-tags": "warning",
+                "deprecated-clients-options": "warning"}
+
+    def deprecated_options(self):
+        groupdata = self.metadata.clients_xml.xdata
+        for el in groupdata.xpath("//Client"):
+            loc = el.get("location")
+            if loc:
+                if loc == "floating":
+                    floating = True
+                else:
+                    floating = False
+                self.LintError("deprecated-clients-options",
+                               "The location='%s' option is deprecated.  "
+                               "Please use floating='%s' instead: %s" %
+                               (loc, floating, self.RenderXML(el)))        
 
     def nested_clients(self):
         groupdata = self.metadata.groups_xml.xdata

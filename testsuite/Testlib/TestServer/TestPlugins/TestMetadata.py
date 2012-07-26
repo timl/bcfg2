@@ -31,6 +31,7 @@ clients_test_tree = lxml.etree.XML('''
   <Client name="client8" profile="group1" auth="cert+password"
           address="1.2.3.5"/>
   <Client name="client9" profile="group2" secure="true" password="password3"/>
+  <Client name="client10" profile="group1" floating="true"/>
 </Clients>''').getroottree()
 
 groups_test_tree = lxml.etree.XML('''
@@ -269,6 +270,16 @@ class TestMetadata(unittest.TestCase):
     def get_metadata_object(self, core=None, watch_clients=False):
         return get_metadata_object(core=core, watch_clients=watch_clients)
 
+    def get_nonexistent_client(self, metadata, prefix="client"):
+        if metadata is None:
+            metadata = self.load_clients_data()
+        i = 0
+        client_name = "%s%s" % (prefix, i)
+        while client_name in metadata.clients:
+            i += 1
+            client_name = "%s%s" % (prefix, i)
+        return client_name
+
     def test__init(self):
         # test with watch_clients=False
         core = Mock()
@@ -308,7 +319,7 @@ class TestMetadata(unittest.TestCase):
         mock_open.assert_any_call(os.path.join(datastore, "Metadata",
                                                "clients.xml"), "w")
 
-    def test_search_xdata_name(self):
+    def test_search_xdata(self):
         # test finding a node with the proper name
         metadata = self.get_metadata_object()
         tree = self.groups_test_tree
@@ -316,7 +327,6 @@ class TestMetadata(unittest.TestCase):
         self.assertIsInstance(res, lxml.etree._Element)
         self.assertEqual(res.get("name"), "group1")
 
-    def test_search_xdata_alias(self):
         # test finding a node with the wrong name but correct alias
         metadata = self.get_metadata_object()
         tree = self.clients_test_tree
@@ -324,11 +334,12 @@ class TestMetadata(unittest.TestCase):
         self.assertIsInstance(res, lxml.etree._Element)
         self.assertNotEqual(res.get("name"), "alias3")
 
-    def test_search_xdata_not_found(self):
         # test failure finding a node
         metadata = self.get_metadata_object()
         tree = self.clients_test_tree
-        res = metadata._search_xdata("Client", "bogus_client", tree, alias=True)
+        res = metadata._search_xdata("Client",
+                                     self.get_nonexistent_client(metadata),
+                                     tree, alias=True)
         self.assertIsNone(res)
 
     def search_xdata(self, tag, name, tree, alias=False):
@@ -462,21 +473,24 @@ class TestMetadata(unittest.TestCase):
         metadata.clients_xml.data = lxml.etree.XML('<Clients/>').getroottree()
         metadata.clients_xml.basedata = copy.copy(metadata.clients_xml.data)
 
-        metadata.add_client("test1", dict())
+        new1 = self.get_nonexistent_client(metadata)
+        metadata.add_client(new1, dict())
         metadata.clients_xml.write.assert_any_call()
-        grp = metadata.search_client("test1", metadata.clients_xml.base_xdata)
+        grp = metadata.search_client(new1, metadata.clients_xml.base_xdata)
         self.assertIsNotNone(grp)
-        self.assertEqual(grp.attrib, dict(name='test1'))
+        self.assertEqual(grp.attrib, dict(name=new1))
 
         # have to call this explicitly -- usually load_xml does this
         # on FAM events
         metadata.clients_xml.basedata = copy.copy(metadata.clients_xml.data)
+        metadata._handle_clients_xml_event(Mock())
 
-        metadata.add_client("test2", dict(foo='bar'))
+        new2 = self.get_nonexistent_client(metadata)
+        metadata.add_client(new2, dict(foo='bar'))
         metadata.clients_xml.write.assert_any_call()
-        grp = metadata.search_client("test2", metadata.clients_xml.base_xdata)
+        grp = metadata.search_client(new2, metadata.clients_xml.base_xdata)
         self.assertIsNotNone(grp)
-        self.assertEqual(grp.attrib, dict(name='test2', foo='bar'))
+        self.assertEqual(grp.attrib, dict(name=new2, foo='bar'))
 
         # have to call this explicitly -- usually load_xml does this
         # on FAM events
@@ -485,7 +499,7 @@ class TestMetadata(unittest.TestCase):
         metadata.clients_xml.write.reset_mock()
         self.assertRaises(MetadataConsistencyError,
                           metadata.add_client,
-                          "test1", dict())
+                          new1, dict())
         self.assertFalse(metadata.clients_xml.write.called)
 
     def test_update_client(self):
@@ -501,9 +515,10 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(grp.get("foo"), "bar")
         self.assertTrue(metadata.clients_xml.write_xml.called)
 
+        new = self.get_nonexistent_client(metadata)
         self.assertRaises(MetadataConsistencyError,
                           metadata.update_client,
-                          "bogus_client", dict())
+                          new, dict())
 
     def load_clients_data(self, metadata=None, xdata=None):
         if metadata is None:
@@ -538,7 +553,7 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(metadata.secure,
                          [c.get("name")
                           for c in self.clients_test_tree.findall("//Client[@secure='true']")])
-        self.assertEqual(metadata.floating, ["client1"])
+        self.assertEqual(metadata.floating, ["client1", "client10"])
 
         addresses = dict([(c.get("address"), [])
                            for c in self.clients_test_tree.findall("//*[@address]")])
@@ -615,7 +630,12 @@ class TestMetadata(unittest.TestCase):
         
     @patch("Bcfg2.Server.Plugins.Metadata.XMLMetadataConfig.load_xml", Mock())
     @patch("Bcfg2.Server.Plugins.Metadata.Metadata._set_profile")
-    def test_set_profile(self, mock_set_profile):
+    def test_set_profile(self, mock_set_profile, inherited_set_profile=None):
+        if inherited_set_profile:
+            # allow a subclass of TestMetadata to patch a different
+            # _set_profile object and pass it in.  this probably isn't
+            # the best way to accomplish that, but it seems to work.
+            mock_set_profile = inherited_set_profile
         metadata = self.get_metadata_object()
         if 'clients.xml' in metadata.states:
             metadata.states['clients.xml'] = False
@@ -655,15 +675,17 @@ class TestMetadata(unittest.TestCase):
         self.assertEqual(metadata.clientgroups["client1"], ["group2"])
 
         metadata.clients_xml.write.reset_mock()
-        metadata._set_profile("client_new", "group1", None)
-        mock_add_client.assert_called_with("client_new", dict(profile="group1"))
+        new1 = self.get_nonexistent_client(metadata)
+        metadata._set_profile(new1, "group1", None)
+        mock_add_client.assert_called_with(new1, dict(profile="group1"))
         metadata.clients_xml.write.assert_any_call()
-        self.assertEqual(metadata.clientgroups["client_new"], ["group1"])
+        self.assertEqual(metadata.clientgroups[new1], ["group1"])
 
-        metadata.session_cache[('1.2.3.6', None)] = (None, 'client_new2')
         metadata.clients_xml.write.reset_mock()
+        new2 = self.get_nonexistent_client(metadata)
+        metadata.session_cache[('1.2.3.6', None)] = (None, new2)
         metadata._set_profile("uuid_new", "group1", ('1.2.3.6', None))
-        mock_add_client.assert_called_with("client_new2",
+        mock_add_client.assert_called_with(new2,
                                            dict(uuid='uuid_new',
                                                 profile="group1",
                                                 address='1.2.3.6'))
@@ -719,12 +741,14 @@ class TestMetadata(unittest.TestCase):
         self.load_groups_data(metadata=metadata)
         self.load_clients_data(metadata=metadata)
 
+        # test address, password
         metadata.get_initial_metadata("client1")
         self.assertEqual(mock_clientmetadata.call_args[0][:9],
                          ("client1", "group1", set(["group1"]), set(), set(),
                           set(["1.2.3.1"]), dict(category1='group1'), None,
                           'password2'))
 
+        # test address, bundles, category suppression
         metadata.get_initial_metadata("client2")
         self.assertEqual(mock_clientmetadata.call_args[0][:9],
                          ("client2", "group2", set(["group2"]),
@@ -732,17 +756,21 @@ class TestMetadata(unittest.TestCase):
                           set(["1.2.3.2"]), dict(category1="group2"),
                           None, None))
 
+        # test aliases, address, uuid, password
         imd = metadata.get_initial_metadata("alias1")
         self.assertEqual(mock_clientmetadata.call_args[0][:9],
                          ("client3", "group1", set(["group1"]), set(),
                           set(['alias1']), set(["1.2.3.3"]),
                           dict(category1="group1"), 'uuid1', 'password2'))
 
-        imd = metadata.get_initial_metadata("client_new")
+        # test new client creation
+        new1 = self.get_nonexistent_client(metadata)
+        imd = metadata.get_initial_metadata(new1)
         self.assertEqual(mock_clientmetadata.call_args[0][:9],
-                         ("client_new", "group1", set(["group1"]), set(),
+                         (new1, "group1", set(["group1"]), set(),
                           set(), set(), dict(category1="group1"), None, None))
 
+        # test nested groups, address, per-client groups
         imd = metadata.get_initial_metadata("client8")
         self.assertEqual(mock_clientmetadata.call_args[0][:9],
                          ("client8", "group1",
@@ -750,6 +778,7 @@ class TestMetadata(unittest.TestCase):
                           set(), set(["1.2.3.5"]), dict(category1="group1"),
                           None, None))
 
+        # test setting per-client groups, group negation, nested groups
         imd = metadata.get_initial_metadata("client9")
         self.assertEqual(mock_clientmetadata.call_args[0][:9],
                          ("client9", "group2",
@@ -757,10 +786,11 @@ class TestMetadata(unittest.TestCase):
                           set(["bundle1", "bundle2"]), set(), set(),
                           dict(category1="group2"), None, "password3"))
 
+        # test new client with no default profile
         metadata.default = None
+        new2 = self.get_nonexistent_client(metadata)
         self.assertRaises(MetadataConsistencyError,
-                          metadata.get_initial_metadata,
-                          "client_new2")
+                          metadata.get_initial_metadata, new2)
 
     @patch("Bcfg2.Server.Plugins.Metadata.XMLMetadataConfig.load_xml", Mock())
     def test_merge_groups(self):
