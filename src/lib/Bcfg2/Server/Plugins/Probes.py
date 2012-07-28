@@ -4,6 +4,8 @@ import operator
 import re
 import os
 import Bcfg2.Server
+from django.db import models
+import Bcfg2.Server.Plugin
 
 try:
     import json
@@ -30,6 +32,20 @@ import Bcfg2.Server.Plugin
 
 specific_probe_matcher = re.compile("(.*/)?(?P<basename>\S+)(.(?P<mode>[GH](\d\d)?)_\S+)")
 probe_matcher = re.compile("(.*/)?(?P<basename>\S+)")
+
+class ProbesDataModel(models.model,
+                      Bcfg2.Server.Plugins.PluginDatabaseModel):
+    hostname = models.CharField(max_length=255)
+    probe = models.CharField(max_length=255)
+    timestamp = models.Timestamp() # FIXME
+    data = models.TextField(null=True) # FIXME
+
+
+class ProbesGroupsModel(models.model,
+                        Bcfg2.Server.Plugins.PluginDatabaseModel):
+    hostname = models.CharField(max_length=255)
+    group = models.CharField(max_length=255)
+
 
 class ClientProbeDataSet(dict):
     """ dict of probe => [probe data] that records a for each host """
@@ -170,8 +186,19 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
         self.cgroups = dict()
         self.load_data()
 
+    @property
+    def _use_db(self):
+        return self.core.setup.cfp.getboolean("probes", "use_database",
+                                              default=False)
+
     def write_data(self):
         """Write probe data out for use with bcfg2-info."""
+        if self._use_db:
+            return self._write_data_xml(self, client)
+        else:
+            return self._write_data_db(self, client)
+
+    def _write_data_xml(self, _):
         top = lxml.etree.Element("Probed")
         for client, probed in sorted(self.probedata.items()):
             cx = lxml.etree.SubElement(top, 'Client', name=client,
@@ -185,12 +212,37 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
                                    xml_declaration=True,
                                    pretty_print='true')
         try:
-            datafile = open("%s/%s" % (self.data, 'probed.xml'), 'w')
+            datafile = open(os.path.join(self.data, 'probed.xml'), 'w')
             datafile.write(data.decode('utf-8'))
         except IOError:
             self.logger.error("Failed to write probed.xml")
 
+    def _write_data_db(self, client):
+        for probe, data in self.probedata[client.hostname]:
+            pdata = ProbesDataModel.load_or_create(hostname=client.hostname, #FIXME
+                                                   probe=probe)
+            if pdata.data != data:
+                pdata.data = data
+                pdata.save()
+        ProbesDataModel.objects.filter(hostname=client.hostname).filter(probe__not_in(self.probedata[client.hostname])).delete() #FIXME
+
+        for group in self.cgroups[client.hostname]:
+            try:
+                ProbesGroupsModel.objects.get(hostname=client.hostname,
+                                              group=group)
+            except ProbesGroupsModel.DoesNotExist:
+                grp = ProbesGroupsModel(hostname=client.hostname,
+                                        group=group)
+                grp.save()
+        ProbesDataModel.objects.filter(hostname=client.hostname).filter(group__not_in(self.cgroups[client.hostname])).delete() #FIXME
+
     def load_data(self):
+        if self.use_db:
+            return self._load_data_xml(self)
+        else:
+            return self._load_data_db(self)
+            
+    def _load_data_xml(self):
         try:
             data = lxml.etree.parse(os.path.join(self.data, 'probed.xml'),
                                     parser=Bcfg2.Server.XMLParser).getroot()
@@ -210,6 +262,19 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
                 elif (pdata.tag == 'Group'):
                     self.cgroups[client.get('name')].append(pdata.get('name'))
 
+    def _load_data_db(self):
+        self.probedata = {}
+        self.cgroups = {}
+        for pdata in ProbesDataModel.objects.all():
+            if pdata.hostname not in self.probedata:
+                self.probedata[pdata.hostname] = \
+                    ClientProbeDataSet(timestamp=pdata.timestamp)
+            self.probedata[pdata.hostname][pdata.probe] = ProbeData(pdata.data)
+        for pgroup in ProbesGroupsModel.objects.all():
+            if pgroup.hostname not in self.cgroups:
+                self.cgroups[pgroup.hostname] = []
+            self.cgroups[pgroup.hostname].append(pgroup.group)
+
     def GetProbes(self, meta, force=False):
         """Return a set of probes for execution on client."""
         return self.probes.get_probe_data(meta)
@@ -219,7 +284,7 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
         self.probedata[client.hostname] = ClientProbeDataSet()
         for data in datalist:
             self.ReceiveDataItem(client, data)
-        self.write_data()
+        self.write_data(client)
 
     def ReceiveDataItem(self, client, data):
         """Receive probe results pertaining to client."""
