@@ -32,8 +32,79 @@ def test_syncdb():
     assert list(MetadataClientModel.objects.all()) == []
 
 
+class TestClientVersions(unittest.TestCase):
+    test_clients = dict(client1="1.2.0",
+                        client2="1.2.2",
+                        client3="1.3.0pre1",
+                        client4="1.1.0",
+                        client5=None,
+                        client6=None)
+
+    def setUp(self):
+        test_syncdb()
+        for client, version in self.test_clients.items():
+            MetadataClientModel(hostname=client, version=version).save()
+
+    def test__contains(self):
+        v = ClientVersions()
+        self.assertIn("client1", v)
+        self.assertIn("client5", v)
+        self.assertNotIn("client__contains", v)
+
+    def test_keys(self):
+        v = ClientVersions()
+        self.assertItemsEqual(self.test_clients.keys(), v.keys())
+
+    def test__setitem(self):
+        v = ClientVersions()
+
+        # test setting version of existing client
+        v["client1"] = "1.2.3"
+        self.assertIn("client1", v)
+        self.assertEqual(v['client1'], "1.2.3")
+        client = MetadataClientModel.objects.get(hostname="client1")
+        self.assertEqual(client.version, "1.2.3")
+
+        # test adding new client
+        new = "client__setitem"
+        v[new] = "1.3.0"
+        self.assertIn(new, v)
+        self.assertEqual(v[new], "1.3.0")
+        client = MetadataClientModel.objects.get(hostname=new)
+        self.assertEqual(client.version, "1.3.0")
+
+        # test adding new client with no version
+        new2 = "client__setitem_2"
+        v[new2] = None
+        self.assertIn(new2, v)
+        self.assertEqual(v[new2], None)
+        client = MetadataClientModel.objects.get(hostname=new2)
+        self.assertEqual(client.version, None)
+        
+    def test__getitem(self):
+        v = ClientVersions()
+        
+        # test getting existing client
+        self.assertEqual(v['client2'], "1.2.2")
+        self.assertIsNone(v['client5'])
+
+        # test exception on nonexistent client. can't use assertRaises
+        # for this because assertRaises requires a callable
+        try:
+            v['clients__getitem']
+            assert False
+        except KeyError:
+            assert True
+        except:
+            assert False
+
+
 class TestDBMetadataBase(TestMetadata):
     __test__ = False
+
+    def __init__(self, *args, **kwargs):
+        TestMetadata.__init__(self, *args, **kwargs)
+        test_syncdb()
 
     def load_clients_data(self, metadata=None, xdata=None):
         if metadata is None:

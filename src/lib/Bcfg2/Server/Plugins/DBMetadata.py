@@ -14,11 +14,13 @@ class MetadataClientModel(models.Model,
 
 class ClientVersions(DictMixin):
     def __getitem__(self, key):
-        client = MetadataClientModel(hostname=key)
-        return client.version
+        try:
+            return MetadataClientModel.objects.get(hostname=key).version
+        except MetadataClientModel.DoesNotExist:
+            raise KeyError(key)
 
     def __setitem__(self, key, value):
-        client = MetadataClientModel(hostname=key)
+        client = MetadataClientModel.objects.get_or_create(hostname=key)[0]
         client.version = value
         client.save()
 
@@ -27,7 +29,7 @@ class ClientVersions(DictMixin):
 
     def __contains__(self, key):
         try:
-            client = MetadataClientModel(hostname=key)
+            client = MetadataClientModel.objects.get(hostname=key)
             return True
         except MetadataClientModel.DoesNotExist:
             return False

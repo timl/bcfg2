@@ -96,8 +96,9 @@ class TestXMLMetadataConfig(unittest.TestCase):
         # we can't use assertRaises here because xdata is a property
         try:
             config.xdata
+            assert False
         except MetadataRuntimeError:
-            pass
+            assert True
         except:
             assert False
         config.data = "<test/>"
@@ -108,8 +109,9 @@ class TestXMLMetadataConfig(unittest.TestCase):
         # we can't use assertRaises here because base_xdata is a property
         try:
             config.base_xdata
+            assert False
         except MetadataRuntimeError:
-            pass
+            assert True
         except:
             assert False
         config.basedata = "<test/>"
