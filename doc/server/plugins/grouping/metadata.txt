@@ -263,6 +263,8 @@ earlier.
 
 Groups can also contain other groups, clients, and bundles.
 
+.. _metadata-client-tag:
+
 Metadata Client Tag
 -------------------
 

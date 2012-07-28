@@ -428,7 +428,7 @@ SERVER_BACKEND = \
 # database options
 DB_ENGINE = \
     Option('Database engine',
-           default='sqlite3',
+           default='django.db.backends.sqlite3',
            cf=('database', 'engine'))
 DB_NAME = \
     Option('Database name',

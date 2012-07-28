@@ -35,6 +35,8 @@ class ClientVersions(DictMixin):
 
 class DBMetadata(Metadata, Bcfg2.Server.Plugin.DatabaseBacked):
     __files__ = ["groups.xml"]
+    experimental = True
+    conflicts = ['Metadata']
 
     def __init__(self, core, datastore, watch_clients=True):
         Metadata.__init__(self, core, datastore, watch_clients=watch_clients)
