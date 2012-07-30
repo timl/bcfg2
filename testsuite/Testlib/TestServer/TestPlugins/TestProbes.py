@@ -13,6 +13,7 @@ Bcfg2.settings.DATABASE_NAME = \
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.sqlite")
 Bcfg2.settings.DATABASES['default']['NAME'] = Bcfg2.settings.DATABASE_NAME
 
+import Bcfg2.Server
 import Bcfg2.Server.Plugin
 from Bcfg2.Server.Plugins.Probes import *
 
@@ -233,6 +234,8 @@ text
                                                                    probes.name),
                                                       probes.probes)
         mock_load_data.assert_any_call()
+        self.assertEqual(probes.probedata, ClientProbeDataSet())
+        self.assertEqual(probes.cgroups, dict())
 
     @patch("Bcfg2.Server.Plugins.Probes.Probes.load_data", Mock())
     def test__use_db(self):
@@ -264,7 +267,7 @@ text
         probes.cgroups = self.get_test_cgroups()
         probes._write_data_xml(None)
         
-        mock_open.assert_called_with(os.path.join(datastore, "Probes",
+        mock_open.assert_called_with(os.path.join(datastore, probes.name,
                                                   "probed.xml"), "w")
         data = lxml.etree.XML(str(mock_open.return_value.write.call_args[0][0]))
         self.assertEqual(len(data.xpath("//Client")), 2)
@@ -369,6 +372,9 @@ text
     @patch("Bcfg2.Server.Plugins.Probes.Probes._load_data_xml", Mock())
     def test_load_data(self):
         probes = self.get_probes_object(use_db=False)
+        probes._load_data_xml.reset_mock()
+        probes._load_data_db.reset_mock()
+        
         probes.load_data()
         probes._load_data_xml.assert_any_call()
         self.assertFalse(probes._load_data_db.called)
@@ -379,3 +385,133 @@ text
         probes.load_data()
         probes._load_data_db.assert_any_call()
         self.assertFalse(probes._load_data_xml.called)
+
+    @patch("__builtin__.open")
+    @patch("lxml.etree.parse")
+    def test__load_data_xml(self, mock_parse, mock_open):
+        probes = self.get_probes_object(use_db=False)
+        # to get the value for lxml.etree.parse to parse, we call
+        # _write_data_xml, mock the open() call, and grab the data
+        # that gets "written" to probed.xml
+        probes.probedata = self.get_test_probedata()
+        probes.cgroups = self.get_test_cgroups()
+        probes._write_data_xml(None)
+        xdata = \
+            lxml.etree.XML(str(mock_open.return_value.write.call_args[0][0]))
+        mock_parse.return_value = xdata.getroottree()
+        probes.probedata = dict()
+        probes.cgroups = dict()
+
+        probes._load_data_xml()
+        mock_parse.assert_called_with(os.path.join(datastore, probes.name,
+                                                   'probed.xml'),
+                                      parser=Bcfg2.Server.XMLParser)
+        self.assertItemsEqual(probes.probedata, self.get_test_probedata())
+        self.assertItemsEqual(probes.cgroups, self.get_test_cgroups())
+
+    def test__load_data_db(self):
+        test_syncdb()
+        probes = self.get_probes_object(use_db=True)
+        probes.probedata = self.get_test_probedata()
+        probes.cgroups = self.get_test_cgroups()
+        for cname in probes.probedata.keys():
+            client = Mock()
+            client.hostname = cname
+            probes._write_data_db(client)
+
+        probes.probedata = dict()
+        probes.cgroups = dict()
+        probes._load_data_db()
+        self.assertItemsEqual(probes.probedata, self.get_test_probedata())
+        # the db backend does not store groups at all if a client has
+        # no groups set, so we can't just use assertItemsEqual here,
+        # because loading saved data may _not_ result in the original
+        # data if some clients had no groups set.
+        test_cgroups = self.get_test_cgroups()
+        for cname, groups in test_cgroups.items():
+            if cname in probes.cgroups:
+                self.assertEqual(groups, probes.cgroups[cname])
+            else:
+                self.assertEqual(groups, [])
+
+    @patch("Bcfg2.Server.Plugins.Probes.ProbeSet.get_probe_data")
+    def test_GetProbes(self, mock_get_probe_data):
+        probes = self.get_probes_object()
+        metadata = Mock()
+        probes.GetProbes(metadata)
+        mock_get_probe_data.assert_called_with(metadata)
+
+    @patch("Bcfg2.Server.Plugins.Probes.Probes.write_data")
+    @patch("Bcfg2.Server.Plugins.Probes.Probes.ReceiveDataItem")
+    def test_ReceiveData(self, mock_ReceiveDataItem, mock_write_data):
+        # we use a simple (read: bogus) datalist here to make this
+        # easy to test
+        datalist = ["a", "b", "c"]
+        
+        probes = self.get_probes_object()
+        client = Mock()
+        client.hostname = "foo.example.com"
+        probes.ReceiveData(client, datalist)
+        
+        self.assertItemsEqual(mock_ReceiveDataItem.call_args_list,
+                              [((client, "a"), {}), ((client, "b"), {}),
+                               ((client, "c"), {})])
+        mock_write_data.assert_called_with(client)
+
+    def test_ReceiveDataItem(self):
+        probes = self.get_probes_object()
+        for cname, cdata in self.get_test_probedata().items():
+            client = Mock()
+            client.hostname = cname
+            for pname, pdata in cdata.items():
+                dataitem = lxml.etree.Element("Probe", name=pname)
+                if pname == "text":
+                    # add some groups to the plaintext test to test
+                    # group parsing
+                    data = [pdata]
+                    for group in self.get_test_cgroups()[cname]:
+                        data.append("group:%s" % group)
+                    dataitem.text = "\n".join(data)
+                else:
+                    dataitem.text = str(pdata)
+
+                probes.ReceiveDataItem(client, dataitem)
+                
+                self.assertIn(client.hostname, probes.probedata)
+                self.assertIn(pname, probes.probedata[cname])
+                self.assertEqual(pdata, probes.probedata[cname][pname])
+            self.assertIn(client.hostname, probes.cgroups)
+            self.assertEqual(probes.cgroups[cname],
+                             self.get_test_cgroups()[cname])
+
+    def test_get_additional_groups(self):
+        probes = self.get_probes_object()
+        test_cgroups = self.get_test_cgroups()
+        probes.cgroups = self.get_test_cgroups()
+        for cname in test_cgroups.keys():
+            metadata = Mock()
+            metadata.hostname = cname
+            self.assertEqual(test_cgroups[cname],
+                             probes.get_additional_groups(metadata))
+        # test a non-existent client
+        metadata = Mock()
+        metadata.hostname = "nonexistent"
+        self.assertEqual(probes.get_additional_groups(metadata),
+                         list())
+
+    def test_get_additional_data(self):
+        probes = self.get_probes_object()
+        test_probedata = self.get_test_probedata()
+        probes.probedata = self.get_test_probedata()
+        for cname in test_probedata.keys():
+            metadata = Mock()
+            metadata.hostname = cname
+            self.assertEqual(test_probedata[cname],
+                             probes.get_additional_data(metadata))
+        # test a non-existent client
+        metadata = Mock()
+        metadata.hostname = "nonexistent"
+        self.assertEqual(probes.get_additional_data(metadata),
+                         ClientProbeDataSet())
+        
+        

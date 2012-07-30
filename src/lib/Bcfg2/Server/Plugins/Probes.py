@@ -242,7 +242,7 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
         self.cgroups = {}
         for client in data.getchildren():
             self.probedata[client.get('name')] = \
-                ClientProbeDataSet(timestamp=time.mktime(client.get("timestamp").timetuple()))
+                ClientProbeDataSet(timestamp=client.get("timestamp"))
             self.cgroups[client.get('name')] = []
             for pdata in client:
                 if pdata.tag == 'Probe':
@@ -257,7 +257,7 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
         for pdata in ProbesDataModel.objects.all():
             if pdata.hostname not in self.probedata:
                 self.probedata[pdata.hostname] = \
-                    ClientProbeDataSet(timestamp=pdata.timestamp)
+                    ClientProbeDataSet(timestamp=time.mktime(pdata.timestamp.timetuple()))
             self.probedata[pdata.hostname][pdata.probe] = ProbeData(pdata.data)
         for pgroup in ProbesGroupsModel.objects.all():
             if pgroup.hostname not in self.cgroups:
@@ -279,19 +279,18 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
         """Receive probe results pertaining to client."""
         if client.hostname not in self.cgroups:
             self.cgroups[client.hostname] = []
+        if client.hostname not in self.probedata:
+            self.probedata[client.hostname] = ClientProbeDataSet()
         if data.text == None:
-            self.logger.error("Got null response to probe %s from %s" % \
-                              (data.get('name'), client.hostname))
-            try:
-                self.probedata[client.hostname].update({data.get('name'):
+            self.logger.info("Got null response to probe %s from %s" %
+                             (data.get('name'), client.hostname))
+            self.probedata[client.hostname].update({data.get('name'):
                                                         ProbeData('')})
-            except KeyError:
-                self.probedata[client.hostname] = \
-                    ClientProbeDataSet([(data.get('name'), ProbeData(''))])
             return
         dlines = data.text.split('\n')
-        self.logger.debug("%s:probe:%s:%s" % (client.hostname,
-            data.get('name'), [line.strip() for line in dlines]))
+        self.logger.debug("%s:probe:%s:%s" %
+                          (client.hostname, data.get('name'),
+                           [line.strip() for line in dlines]))
         for line in dlines[:]:
             if line.split(':')[0] == 'group':
                 newgroup = line.split(':')[1].strip()
@@ -299,11 +298,7 @@ class Probes(Bcfg2.Server.Plugin.Plugin,
                     self.cgroups[client.hostname].append(newgroup)
                 dlines.remove(line)
         dobj = ProbeData("\n".join(dlines))
-        try:
-            self.probedata[client.hostname].update({data.get('name'): dobj})
-        except KeyError:
-            self.probedata[client.hostname] = \
-                ClientProbeDataSet([(data.get('name'), dobj)])
+        self.probedata[client.hostname].update({data.get('name'): dobj})
 
     def get_additional_groups(self, meta):
         return self.cgroups.get(meta.hostname, list())
