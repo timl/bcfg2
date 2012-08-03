@@ -99,13 +99,30 @@ class POSIX(Bcfg2.Client.Tools.Tool):
             except (OSError, KeyError):
                 pass
 
+            entry.set('perms', str(oct(ondisk[stat.ST_MODE])[-4:]))
+
             if has_selinux:
                 try:
                     entry.set('current_secontext',
                               selinux.getfilecon(entry.get('name'))[1])
                 except (OSError, KeyError):
                     pass
-            entry.set('perms', str(oct(ondisk[stat.ST_MODE])[-4:]))
+
+            if has_acls:
+                for aclkey, perms in self._list_file_acls(entry):
+                    atype, scope, qual = aclkey
+                    aclentry = lxml.etree.Element("ACL", type=atype,
+                                                  perms=perms)
+                    if scope == posix1e.ACL_USER:
+                        aclentry.set("scope", "user")
+                    elif scope == posix1e.ACL_GROUP:
+                        aclentry.set("scope", "group")
+                    else:
+                        self.logger.debug("Unknown ACL scope %s on %s" %
+                                          (scope, entry.get("name")))
+                        continue
+                    aclentry.set(aclentry.get("scope"), qual)
+                    entry.append(aclentry)
 
     def _set_perms(self, entry, path=None):
         if path is None:
