@@ -1,6 +1,8 @@
 import os
 import sys
-from Bcfg2.Client.POSIX import POSIXTool
+import stat
+import Bcfg2.Client.XML
+from base import POSIXTool
 
 class POSIXDirectory(POSIXTool):
     __req__ = ['name', 'perms', 'owner', 'group']
@@ -17,7 +19,7 @@ class POSIXDirectory(POSIXTool):
         return True
 
     def verify(self, entry, modlist):
-        ondisk = POSIXTool.verify(self, entry):
+        ondisk = POSIXTool.verify(self, entry, modlist)
         if not ondisk:
             return False
         
@@ -39,7 +41,7 @@ class POSIXDirectory(POSIXTool):
                               entry.get('name')
                     nqtext += ":".join(ex_ents)
                     entry.set('qtext', nqtext)
-                    [entry.append(lxml.etree.Element('Prune', path=x))
+                    [entry.append(XML.Element('Prune', path=x))
                      for x in ex_ents]
             except OSError:
                 ex_ents = []

@@ -1,7 +1,10 @@
 import os
 import sys
+import stat
+import difflib
+import binascii
 import tempfile
-from Bcfg2.Client.POSIX import POSIXTool
+from base import POSIXTool
 
 # py3k compatibility
 if sys.hexversion >= 0x03000000:
@@ -15,8 +18,8 @@ class POSIXFile(POSIXTool):
             return False
         return True
 
-    def verify(self, entry, _):
-        ondisk = POSIXTool.verify(self, entry)
+    def verify(self, entry, modlist):
+        ondisk = POSIXTool.verify(self, entry, modlist)
 
         tbin = False
         if entry.get('encoding', 'ascii') == 'base64':

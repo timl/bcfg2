@@ -1,6 +1,6 @@
 import os
 import sys
-from Bcfg2.Client.POSIX import POSIXTool
+from base import POSIXTool
 
 class POSIXDevice(POSIXTool):
     __req__ = ['name', 'dev_type', 'perms', 'owner', 'group']

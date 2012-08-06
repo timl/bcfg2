@@ -1,7 +1,7 @@
 import os
 import sys
 import shutil
-from Bcfg2.Client.POSIX import POSIXTool
+from base import POSIXTool
 
 class POSIXNonexistent(POSIXTool):
     __req__ = ['name']
@@ -14,7 +14,7 @@ class POSIXNonexistent(POSIXTool):
         ename = entry.get('name')
         if entry.get('recursive').lower() == 'true':
             # ensure that configuration spec is consistent first
-            if [e for e in self.buildModlist() \
+            if [e for e in self.buildModlist()
                 if e.startswith(ename) and e != ename]:
                 self.logger.error('Not installing %s. One or more files '
                                   'in this directory are specified in '
