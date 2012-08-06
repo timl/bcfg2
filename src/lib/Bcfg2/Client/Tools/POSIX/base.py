@@ -49,15 +49,15 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             entry.set('current_group', str(ondisk[stat.ST_GID]))
         except (OSError, KeyError):
             err = sys.exc_info()[1]
-            self.logger.debug("Could not get current owner or group of %s: %s" %
-                              (entry.get("name"), err))
+            self.logger.debug("POSIX: Could not get current owner or group of "
+                              "%s: %s" % (entry.get("name"), err))
 
         try:
             entry.set('perms', str(oct(ondisk[stat.ST_MODE])[-4:]))
         except (OSError, KeyError):
             err = sys.exc_info()[1]
-            self.logger.debug("Could not get current permissions of %s: %s" %
-                              (entry.get("name"), err))
+            self.logger.debug("POSIX: Could not get current permissions of %s: "
+                              "%s" % (entry.get("name"), err))
 
         if has_selinux:
             try:
@@ -65,8 +65,9 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                           selinux.getfilecon(entry.get('name'))[1])
             except (OSError, KeyError):
                 err = sys.exc_info()[1]
-                self.logger.debug("Could not get current SELinux context of %s:"
-                                  "%s" % (entry.get("name"), err))
+                self.logger.debug("POSIX: Could not get current SELinux "
+                                  "context of %s: %s" % (entry.get("name"),
+                                                         err))
 
         if has_acls:
             for aclkey, perms in self._list_file_acls(entry):
@@ -78,7 +79,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                 elif scope == posix1e.ACL_GROUP:
                     aclentry.set("scope", "group")
                 else:
-                    self.logger.debug("Unknown ACL scope %s on %s" %
+                    self.logger.debug("POSIX: Unknown ACL scope %s on %s" %
                                       (scope, entry.get("name")))
                     continue
                 aclentry.set(aclentry.get("scope"), qual)
@@ -86,12 +87,6 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
 
 
     def verify(self, entry, modlist):
-        if not self.fully_specified(entry):
-            self.logger.error('Cannot verify incomplete entry %s. '
-                              'Try running bcfg2-lint.' %
-                              entry.get('name'))
-            return False
-
         try:
             ondisk = os.stat(entry.get('name'))
         except OSError:
@@ -114,12 +109,6 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
         return ondisk
 
     def install(self, entry):
-        if not self.fully_specified(entry):
-            self.logger.error('Cannot install incomplete entry %s. '
-                              'Try running bcfg2-lint.' %
-                              entry.get('name'))
-            return False
-
         plist = [entry.get('name')]
         if entry.get('recursive', 'false').lower() == 'true':
             # verify ownership information recursively
@@ -142,18 +131,18 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                         f.startswith(bkupnam)]
         except OSError:
             err = sys.exc_info()[1]
-            self.logger.error("Failed to create backup list in %s: %s" %
+            self.logger.error("POSIX: Failed to create backup list in %s: %s" %
                               (self.ppath, err))
         bkuplist.sort()
         while len(bkuplist) >= int(self.max_copies):
             # remove the oldest backup available
             oldest = bkuplist.pop(0)
-            self.logger.info("Removing %s" % oldest)
+            self.logger.info("POSIX: Removing old backup %s" % oldest)
             try:
                 os.remove(os.path.join(self.ppath, oldest))
             except OSError:
                 err = sys.exc_info()[1]
-                self.logger.error("Failed to remove old backup %s: %s" %
+                self.logger.error("POSIX: Failed to remove old backup %s: %s" %
                                   os.path.join(self.ppath, oldest), err)
 
     def _paranoid_backup(self, entry):
@@ -167,12 +156,12 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             bfile = os.path.join(self.ppath, bkupnam)
             try:
                 shutil.copy(entry.get('name'), bfile)
-                self.logger.info("Backup of %s saved to %s" %
+                self.logger.info("POSIX: Backup of %s saved to %s" %
                                  (entry.get('name'), bfile))
             except IOError:
                 err = sys.exc_info()[1]
-                self.logger.error("Failed to create backup file for %s: %s" %
-                                  (entry.get('name'), err))
+                self.logger.error("POSIX: Failed to create backup file for %s: "
+                                  "%s" % (entry.get('name'), err))
 
     def _exists(self, entry, remove=False):
         try:
@@ -184,8 +173,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                     return False
                 except OSError:
                     err = sys.exc_info()[1]
-                    self.logger.warning('Failed to unlink %s: %s' %
-                                      (entry.get('name'), err))
+                    self.logger.warning('POSIX: Failed to unlink %s: %s' %
+                                        (entry.get('name'), err))
                     return ondisk # probably still exists
             else:
                 return ondisk
@@ -199,7 +188,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
         if (entry.get('perms') == None or
             entry.get('owner') == None or
             entry.get('group') == None):
-            self.logger.error('Entry %s not completely specified. '
+            self.logger.error('POSIX: Entry %s not completely specified. '
                               'Try running bcfg2-lint.' % entry.get('name'))
             return False
 
@@ -208,29 +197,30 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
         # chown fails, the chmod can succeed -- get as close to the
         # desired state as we can
         try:
-            self.logger.debug("Setting ownership of %s to %s:%s" %
+            self.logger.debug("POSIX: Setting ownership of %s to %s:%s" %
                               (path,
                                self._norm_entry_uid(entry),
                                self._norm_entry_gid(entry)))
             os.chown(path, self._norm_entry_uid(entry),
                      self._norm_entry_gid(entry))
         except KeyError:
-            self.logger.error('Failed to change ownership of %s' % path)
+            self.logger.error('POSIX: Failed to change ownership of %s' % path)
             rv = False
             os.chown(path, 0, 0)
         except OSError:
-            self.logger.error('Failed to change ownership of %s' % path)
+            self.logger.error('POSIX: Failed to change ownership of %s' % path)
             rv = False
 
         configPerms = int(entry.get('perms'), 8)
         if entry.get('dev_type'):
             configPerms |= device_map[entry.get('dev_type')]
         try:
-            self.logger.debug("Setting permissions on %s to %s" %
+            self.logger.debug("POSIX: Setting permissions on %s to %s" %
                               (path, oct(configPerms)))
             os.chmod(path, configPerms)
         except (OSError, KeyError):
-            self.logger.error('Failed to change permissions mode of %s' % path)
+            self.logger.error('POSIX: Failed to change permissions mode of %s' %
+                              path)
             rv = False
 
         recursive = entry.get("recursive", "false").lower() == "true"
@@ -242,8 +232,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
         """ set POSIX ACLs on the file on disk according to the config """
         if not has_acls:
             if entry.findall("ACL"):
-                self.logger.debug("ACLs listed for %s but no pylibacl library "
-                                  "installed" % entry.get('name'))
+                self.logger.debug("POSIX: ACLs listed for %s but no pylibacl "
+                                  "library installed" % entry.get('name'))
             return True
 
         if path is None:
@@ -276,7 +266,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             atype, scope, qualifier = aclkey
             if atype == "default":
                 if defacl is None:
-                    self.logger.warning("Cannot set default ACLs on "
+                    self.logger.warning("POSIX: Cannot set default ACLs on "
                                         "non-directory %s" % path)
                     continue
                 entry = posix1e.Entry(defacl)
@@ -295,7 +285,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                     entry.qualifier = self._norm_gid(qualifier)
             except (OSError, KeyError):
                 err = sys.exc_info()[1]
-                self.logger.error("Could not resolve %s %s: %s" %
+                self.logger.error("POSIX: Could not resolve %s %s: %s" %
                                   (scopename, qualifier, err))
                 continue
         acl.calc_mask()
@@ -306,7 +296,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             else:
                 atype_str = "default"
             if acl.valid():
-                self.logger.debug("Applying %s ACL to %s:" % (atype_str, path))
+                self.logger.debug("POSIX: Applying %s ACL to %s:" % (atype_str,
+                                                                     path))
                 for line in str(acl).splitlines():
                     self.logger.debug("  " + line)
                 try:
@@ -314,12 +305,12 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                     return True
                 except:
                     err = sys.exc_info()[1]
-                    self.logger.error("Failed to set ACLs on %s: %s" %
+                    self.logger.error("POSIX: Failed to set ACLs on %s: %s" %
                                       (path, err))
                     return False
             else:
-                self.logger.warning("%s ACL created for %s was invalid:" % 
-                                    (atype_str.title(), path))
+                self.logger.warning("POSIX: %s ACL created for %s was invalid:"
+                                    % (atype_str.title(), path))
                 for line in str(acl).splitlines():
                     self.logger.warning("  " + line)
                 return False
@@ -355,16 +346,16 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                 selinux.restorecon(path, recursive=recursive)
             except:
                 err = sys.exc_info()[1]
-                self.logger.error("Failed to restore SELinux context for %s: %s"
-                                  % (path, err))
+                self.logger.error("POSIX: Failed to restore SELinux context "
+                                  "for %s: %s" % (path, err))
                 rv = False
         else:
             try:
                 rv &= selinux.lsetfilecon(path, context) == 0
             except:
                 err = sys.exc_info()[1]
-                self.logger.error("Failed to restore SELinux context for %s: %s"
-                                  % (path, err))
+                self.logger.error("POSIX: Failed to restore SELinux context "
+                                  "for %s: %s" % (path, err))
                 rv = False
 
             if recursive:
@@ -374,8 +365,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                             rv &= selinux.lsetfilecon(p, context) == 0
                         except:
                             err = sys.exc_info()[1]
-                            self.logger.error("Failed to restore SELinux "
-                                              "context for %s: %s" %
+                            self.logger.error("POSIX: Failed to restore "
+                                              "SELinux context for %s: %s" %
                                               (path, err))
                             rv = False
         return rv
@@ -417,8 +408,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             return self._norm_gid(entry.get('group'))
         except (OSError, KeyError):
             err = sys.exc_info()[1]
-            self.logger.error('GID normalization failed for %s on %s: %s' %
-                              (entry.get('group'), entry.get('name'), err))
+            self.logger.error('POSIX: GID normalization failed for %s on %s: %s'
+                              % (entry.get('group'), entry.get('name'), err))
             return 0
 
     def _norm_uid(self, uid):
@@ -434,8 +425,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             return self._norm_uid(entry.get("owner"))
         except (OSError, KeyError):
             err = sys.exc_info()[1]
-            self.logger.error('UID normalization failed for %s on %s: %s' %
-                              (entry.get('owner'), entry.get('name'), err))
+            self.logger.error('POSIX: UID normalization failed for %s on %s: %s'
+                              % (entry.get('owner'), entry.get('name'), err))
             return 0
 
     def _norm_acl_perms(self, perms):
@@ -458,8 +449,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                 if char == '-':
                     continue
                 elif char not in acl_map:
-                    self.logger.error("Unknown permissions character in ACL: %s"
-                                      % char)
+                    self.logger.error("POSIX: Unknown permissions character in "
+                                      "ACL: %s" % char)
                     return 0
                 else:
                     rv |= acl_map[char]
@@ -541,9 +532,9 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                 try:
                     configContext = selinux.matchpathcon(path, 0)[1]
                 except OSError:
-                    self.logger.warning("Failed to get default SELinux context "
-                                        "for %s; missing fcontext rule?" %
-                                        path)
+                    self.logger.warning("POSIX: Failed to get default SELinux "
+                                        "context for %s; missing fcontext rule?"
+                                        % path)
                     return False
             else:
                 configContext = entry.get("secontext")
@@ -553,7 +544,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             if checkonly:
                 return False
             entry.set('current_owner', owner)
-            errors.append("POSIX: Owner for path %s is incorrect. "
+            errors.append("Owner for path %s is incorrect. "
                           "Current owner is %s but should be %s" %
                           (path, ondisk.st_uid, entry.get('owner')))
                         
@@ -561,7 +552,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             if checkonly:
                 return False
             entry.set('current_group', group)
-            errors.append("POSIX: Group for path %s is incorrect. "
+            errors.append("Group for path %s is incorrect. "
                           "Current group is %s but should be %s" %
                           (path, ondisk.st_gid, entry.get('group')))
 
@@ -569,7 +560,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             if checkonly:
                 return False
             entry.set('current_perms', perms)
-            errors.append("POSIX: Permissions for path %s are incorrect. "
+            errors.append(" Permissions for path %s are incorrect. "
                           "Current permissions are %s but should be %s" %
                           (path, perms, entry.get('perms')))
 
@@ -577,7 +568,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             if checkonly:
                 return False
             entry.set('current_mtime', mtime)
-            errors.append("POSIX: mtime for path %s is incorrect. "
+            errors.append("mtime for path %s is incorrect. "
                           "Current mtime is %s but should be %s" %
                           (path, mtime, entry.get('mtime')))
 
@@ -586,7 +577,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
 
         if errors:
             for error in errors:
-                self.logger.debug(error)
+                self.logger.debug("POSIX: " + error)
             entry.set('qtext', "\n".join([entry.get('qtext', '')] + errors))
             return False
         else:
@@ -600,7 +591,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             elif acl.get("scope") == "group":
                 scope = posix1e.ACL_GROUP
             else:
-                self.logger.error("Unknown ACL scope %s" % acl.get("scope"))
+                self.logger.error("POSIX: Unknown ACL scope %s" %
+                                  acl.get("scope"))
                 continue
             wanted[(acl.get("type"), scope, acl.get(acl.get("scope")))] = \
                 self._norm_acl_perms(acl.get('perms'))
@@ -617,7 +609,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                     return
             except (OSError, KeyError):
                 err = sys.exc_info()[1]
-                self.logger.error("Lookup of %s %s failed: %s" %
+                self.logger.error("POSIX: Lookup of %s %s failed: %s" %
                                   (scope, acl.qualifier, err))
                 qual = acl.qualifier
             existing[(atype, acl.tag_type, qual)] = \
@@ -634,8 +626,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
     def _verify_acls(self, entry):
         if not has_acls:
             if entry.findall("ACL"):
-                self.logger.debug("ACLs listed for %s but no pylibacl library "
-                                  "installed" % entry.get('name'))
+                self.logger.debug("POSIX: ACLs listed for %s but no pylibacl "
+                                  "library installed" % entry.get('name'))
             return True
 
         # create lists of normalized representations of the ACLs we want
@@ -710,16 +702,16 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             rv.append(diffline)
             if now - start > 5 and not longtime:
                 if filename:
-                    self.logger.info("Diff of %s taking a long time" %
+                    self.logger.info("POSIX: Diff of %s taking a long time" %
                                      filename)
                 else:
-                    self.logger.info("Diff taking a long time")
+                    self.logger.info("POSIX: Diff taking a long time")
                 longtime = True
             elif now - start > 30:
                 if filename:
-                    self.logger.error("Diff of %s took too long; giving up" %
-                                      filename)
+                    self.logger.error("POSIX: Diff of %s took too long; giving "
+                                      "up" % filename)
                 else:
-                    self.logger.error("Diff took too long; giving up")
+                    self.logger.error("POSIX: Diff took too long; giving up")
                 return False
         return rv

@@ -7,17 +7,6 @@ from base import POSIXTool
 class POSIXDirectory(POSIXTool):
     __req__ = ['name', 'perms', 'owner', 'group']
 
-    def fully_specified(self, entry):
-        if entry.get('dev_type') in ['block', 'char']:
-            # check if major/minor are properly specified
-            if (entry.get('major') == None or
-                entry.get('minor') == None):
-                self.logger.error('Entry %s not completely specified. '
-                                  'Try running bcfg2-lint.' %
-                                  (entry.get('name')))
-                return False
-        return True
-
     def verify(self, entry, modlist):
         ondisk = POSIXTool.verify(self, entry, modlist)
         if not ondisk:
@@ -53,18 +42,18 @@ class POSIXDirectory(POSIXTool):
 
         if fmode and not stat.S_ISDIR(fmode[stat.ST_MODE]):
             self._paranoid_backup(entry)
-            self.logger.info("Found a non-directory entry at %s, removing" %
-                              entry.get('name'))
+            self.logger.info("POSIX: Found a non-directory entry at %s, "
+                             "removing" % entry.get('name'))
             try:
                 os.unlink(entry.get('name'))
                 fmode = False
             except OSError:
                 err = sys.exc_info()[1]
-                self.logger.error("Failed to unlink %s: %s" %
-                                 (entry.get('name'), err))
+                self.logger.error("POSIX: Failed to unlink %s: %s" %
+                                  (entry.get('name'), err))
                 return False
         else:
-            self.logger.debug("Found a pre-existing directory at %s" %
+            self.logger.debug("POSIX: Found a pre-existing directory at %s" %
                               entry.get('name'))
 
         if not fmode:
@@ -74,7 +63,7 @@ class POSIXDirectory(POSIXTool):
                 os.makedirs(entry.get("name"))
             except OSError:
                 err = sys.exc_info()[1]
-                self.logger.error('Failed to create directory %s: %s' %
+                self.logger.error('POSIX: Failed to create directory %s: %s' %
                                   (entry.get('name'), err))
                 return False
         if entry.get('prune', 'false') == 'true' and entry.get("qtext"):
@@ -82,11 +71,12 @@ class POSIXDirectory(POSIXTool):
                 pname = pent.get('path')
                 ulfailed = False
                 try:
-                    self.logger.debug("Unlinking file %s" % pname)
+                    self.logger.debug("POSIX: Unlinking file %s" % pname)
                     os.unlink(pname)
                 except OSError:
                     err = sys.exc_info()[1]
-                    self.logger.error("Failed to unlink %s: %s" % (pname, err))
+                    self.logger.error("POSIX: Failed to unlink %s: %s" %
+                                      (pname, err))
                     ulfailed = True
             if ulfailed:
                 return False

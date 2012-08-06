@@ -15,6 +15,8 @@ class POSIX(Bcfg2.Client.Tools.Tool):
         self.ppath = setup['ppath']
         self.max_copies = setup['max_copies']
         self._handlers = self._load_handlers()
+        self.logger.debug("POSIX: Handlers loaded: %s" %
+                          (", ".join(self._handlers.keys())))
         self.__req__ = dict(Path=dict())
         for etype, hdlr in self._handlers.items():
             self.__req__['Path'][etype] = hdlr.__req__
@@ -57,20 +59,40 @@ class POSIX(Bcfg2.Client.Tools.Tool):
                 rv[etype] = hdlr(self.logger, self.setup, self.config)
         return rv
 
+    def canVerify(self, entry):
+        if not Bcfg2.Client.Tools.Tool.canVerify(self, entry):
+            return False
+        if not self.fully_specified(entry):
+            self.logger.error('POSIX: Cannot verify incomplete entry %s. '
+                              'Try running bcfg2-lint.' %
+                              entry.get('name'))
+            return False
+        return True
+
     def canInstall(self, entry):
         """Check if entry is complete for installation."""
-        return (Bcfg2.Client.Tools.Tool.canInstall(self, entry) and
-                self._handlers[entry.get("type")].fully_specified(entry))
+        if not Bcfg2.Client.Tools.Tool.canInstall(self, entry):
+            return False
+        if not self.fully_specified(entry):
+            self.logger.error('POSIX: Cannot install incomplete entry %s. '
+                              'Try running bcfg2-lint.' %
+                              entry.get('name'))
+            return False
+        return True
 
     def gatherCurrentData(self, entry):
         return self._handlers[entry.get("type")].gather_data(entry)
 
     def InstallPath(self, entry):
         """Dispatch install to the proper method according to type"""
+        self.logger.debug("POSIX: Installing entry %s:%s:%s" %
+                          (entry.tag, entry.get("type"), entry.get("name")))
         return self._handlers[entry.get("type")].install(entry)
 
     def VerifyPath(self, entry, modlist):
         """Dispatch verify to the proper method according to type"""
+        self.logger.debug("POSIX: Verifying entry %s:%s:%s" %
+                          (entry.tag, entry.get("type"), entry.get("name")))
         ret =  self._handlers[entry.get("type")].verify(entry, modlist)
         if entry.get('qtext') and self.setup['interactive']:
             entry.set('qtext',

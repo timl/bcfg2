@@ -49,13 +49,6 @@ class POSIXDevice(POSIXTool):
                 dev_type = entry.get('dev_type')
                 mode = device_map[dev_type] | int(entry.get('mode', '0600'), 8)
                 if dev_type in ['block', 'char']:
-                    # check if major/minor are properly specified
-                    if (entry.get('major') == None or
-                        entry.get('minor') == None):
-                        self.logger.error('Entry %s not completely specified. '
-                                          'Try running bcfg2-lint.' %
-                                          entry.get('name'))
-                        return False
                     major = int(entry.get('major'))
                     minor = int(entry.get('minor'))
                     device = os.makedev(major, minor)
@@ -64,7 +57,7 @@ class POSIXDevice(POSIXTool):
                     os.mknod(entry.get('name'), mode)
             except (KeyError, OSError):
                 err = sys.exc_info()[1]
-                self.logger.error('Failed to install %s: %s' %
+                self.logger.error('POSIX: Failed to install %s: %s' %
                                   (entry.get('name'), err))
                 return False
         return POSIXTool.install(self, entry)

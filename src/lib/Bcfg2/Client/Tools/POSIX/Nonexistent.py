@@ -38,5 +38,5 @@ class POSIXNonexistent(POSIXTool):
             return True
         except OSError:
             err = sys.exc_info()[1]
-            self.logger.error('Failed to remove %s: %s' % (ename, err))
+            self.logger.error('POSIX: Failed to remove %s: %s' % (ename, err))
             return False

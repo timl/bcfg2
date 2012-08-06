@@ -34,7 +34,7 @@ class POSIXFile(POSIXTool):
                     tempdata = tempdata.encode(self.setup['encoding'])
                 except UnicodeEncodeError:
                     err = sys.exc_info()[1]
-                    self.logger.error("Error encoding file %s: %s" %
+                    self.logger.error("POSIX: Error encoding file %s: %s" %
                                       (entry.get('name'), err))
 
         different = False
@@ -58,7 +58,7 @@ class POSIXFile(POSIXTool):
                     content = open(entry.get('name')).read()
                 except IOError:
                     err = sys.exc_info()[1]
-                    self.logger.error("Failed to read %s: %s" %
+                    self.logger.error("POSIX: Failed to read %s: %s" %
                                       (err.filename, err))
                     return False
                 different = content != tempdata
@@ -79,7 +79,7 @@ class POSIXFile(POSIXTool):
                         content = open(entry.get('name')).read()
                     except IOError:
                         err = sys.exc_info()[1]
-                        self.logger.error("Failed to read %s: %s" %
+                        self.logger.error("POSIX: Failed to read %s: %s" %
                                           (err.filename, err))
                         return False
                 if tbin or not self._is_string(content, self.setup['encoding']):
@@ -111,7 +111,7 @@ class POSIXFile(POSIXTool):
                         content = open(entry.get('name')).read()
                     except IOError:
                         err = sys.exc_info()[1]
-                        self.logger.error("Failed to read %s: %s" %
+                        self.logger.error("POSIX: Failed to read %s: %s" %
                                           (err.filename, err))
                         return False
 
@@ -137,7 +137,8 @@ class POSIXFile(POSIXTool):
                 os.makedirs(os.path.dirname(entry.get('name')))
             except OSError:
                 err = sys.exc_info()[1]
-                self.logger.error('Failed to create directory %s for %s: %s' %
+                self.logger.error('POSIX: Failed to create directory %s for '
+                                  '%s: %s' %
                                   (os.path.dirname(entry.get('name')),
                                    entry.get('name'), err))
                 return False
@@ -162,7 +163,7 @@ class POSIXFile(POSIXTool):
                                  dir=os.path.dirname(entry.get("name")))
         except OSError:
             err = sys.exc_info()[1]
-            self.logger.error("Failed to create temp file in %s: %s" %
+            self.logger.error("POSIX: Failed to create temp file in %s: %s" %
                               (os.path.dirname(entry.get('name')), err))
             return False
         rv = self._set_perms(entry, path=newfile)
@@ -170,7 +171,8 @@ class POSIXFile(POSIXTool):
             os.fdopen(newfd, 'w').write(filedata)
         except (OSError, IOError):
             err = sys.exc_info()[1]
-            self.logger.error("Failed to open temp file %s for writing %s: %s" %
+            self.logger.error("POSIX: Failed to open temp file %s for writing "
+                              "%s: %s" %
                               (newfile, entry.get("name"), err))
             return False
 
@@ -178,7 +180,7 @@ class POSIXFile(POSIXTool):
             os.rename(newfile, entry.get('name'))
         except OSError:
             err = sys.exc_info()[1]
-            self.logger.error("Failed to rename temp file %s to %s: %s" %
+            self.logger.error("POSIX: Failed to rename temp file %s to %s: %s" %
                               (newfile, entry.get('name'), err))
             return False
 
@@ -188,7 +190,7 @@ class POSIXFile(POSIXTool):
                 os.utime(entry.get('name'), (int(entry.get('mtime')),
                                              int(entry.get('mtime'))))
             except OSError:
-                self.logger.error("Failed to set mtime of %s" % path)
+                self.logger.error("POSIX: Failed to set mtime of %s" % path)
                 rv = False
 
         return POSIXTool.install(self, entry) and rv
