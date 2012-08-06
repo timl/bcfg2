@@ -5,11 +5,6 @@ from base import POSIXTool
 class POSIXSymlink(POSIXTool):
     __req__ = ['name', 'to']
 
-    def fully_specified(self, entry):
-        if not entry.get("to"):
-            return False
-        return True
-
     def verify(self, entry, _):
         rv = True
 
@@ -23,6 +18,8 @@ class POSIXSymlink(POSIXTool):
                 entry.set('qtext', "\n".join([entry.get('qtext', ''), msg]))
                 rv = False
         except OSError:
+            self.logger.debug("POSIX: %s %s does not exist" %
+                              (entry.tag, entry.get("name")))
             entry.set('current_exists', 'false')
             return False
 

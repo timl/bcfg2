@@ -40,7 +40,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             ondisk = os.stat(entry.get('name'))
         except OSError:
             entry.set('current_exists', 'false')
-            self.logger.debug("%s %s does not exist" %
+            self.logger.debug("POSIX: %s %s does not exist" %
                               (entry.tag, entry.get('name')))
             return False
 
@@ -96,9 +96,8 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             ondisk = os.stat(entry.get('name'))
         except OSError:
             entry.set('current_exists', 'false')
-            self.logger.debug("%s:%s %s does not exist" % (entry.tag, 
-                                                           entry.get("type"),
-                                                           path))
+            self.logger.debug("POSIX: %s %s does not exist" %
+                              (entry.tag, entry.get("name")))
             return False
 
         if not self._verify_metadata(entry):
@@ -135,36 +134,38 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             rv &= self._set_perms(entry, path)
         return rv
 
-    def _paranoid_backup(self, entry):
-        # todo: make this work with directories
-        if (entry.get("paranoid", 'false').lower() == 'true' and
-            self.setup.get("paranoid", False) and
-            entry.get('current_exists', 'true') != 'false'):
-            bkupnam = entry.get('name').replace('/', '_')
-            # current list of backups for this file
+    def prune_old_backups(self, entry):
+        bkupnam = entry.get('name').replace('/', '_')
+        # current list of backups for this file
+        try:
+            bkuplist = [f for f in os.listdir(self.ppath) if
+                        f.startswith(bkupnam)]
+        except OSError:
+            err = sys.exc_info()[1]
+            self.logger.error("Failed to create backup list in %s: %s" %
+                              (self.ppath, err))
+        bkuplist.sort()
+        while len(bkuplist) >= int(self.max_copies):
+            # remove the oldest backup available
+            oldest = bkuplist.pop(0)
+            self.logger.info("Removing %s" % oldest)
             try:
-                bkuplist = [f for f in os.listdir(self.ppath) if
-                            f.startswith(bkupnam)]
+                os.remove(os.path.join(self.ppath, oldest))
             except OSError:
                 err = sys.exc_info()[1]
-                self.logger.error("Failed to create backup list in %s: %s" %
-                                  (self.ppath, err))
-            bkuplist.sort()
-            while len(bkuplist) >= int(self.max_copies):
-                # remove the oldest backup available
-                oldest = bkuplist.pop(0)
-                self.logger.info("Removing %s" % oldest)
-                try:
-                    os.remove(os.path.join(self.ppath, oldest))
-                except OSError:
-                    err = sys.exc_info()[1]
-                    self.logger.error("Failed to remove old backup %s: %s" %
-                                      os.path.join(self.ppath, oldest), err)
+                self.logger.error("Failed to remove old backup %s: %s" %
+                                  os.path.join(self.ppath, oldest), err)
+
+    def _paranoid_backup(self, entry):
+        if (entry.get("paranoid", 'false').lower() == 'true' and
+            self.setup.get("paranoid", False) and
+            entry.get('current_exists', 'true') != 'false' and
+            not os.path.isdir(entry.get("name"))):
+            self._prune_old_backups(entry)
+            bkupnam = "%s_%s" % (entry.get('name').replace('/', '_'),
+                                 datetime.isoformat(datetime.now()))
+            bfile = os.path.join(self.ppath, bkupnam)
             try:
-                bfile = os.path.join(self.ppath,
-                                     "%s_%s" % (bkupnam,
-                                                datetime.isoformat(datetime.now())))
-                # backup existing file
                 shutil.copy(entry.get('name'), bfile)
                 self.logger.info("Backup of %s saved to %s" %
                                  (entry.get('name'), bfile))
@@ -172,7 +173,6 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
                 err = sys.exc_info()[1]
                 self.logger.error("Failed to create backup file for %s: %s" %
                                   (entry.get('name'), err))
-                return False
 
     def _exists(self, entry, remove=False):
         try:
@@ -419,7 +419,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             err = sys.exc_info()[1]
             self.logger.error('GID normalization failed for %s on %s: %s' %
                               (entry.get('group'), entry.get('name'), err))
-            return False
+            return 0
 
     def _norm_uid(self, uid):
         """ This takes a username or uid and returns the
@@ -436,7 +436,7 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
             err = sys.exc_info()[1]
             self.logger.error('UID normalization failed for %s on %s: %s' %
                               (entry.get('owner'), entry.get('name'), err))
-            return False
+            return 0
 
     def _norm_acl_perms(self, perms):
         """ takes a representation of an ACL permset and returns a digit
@@ -536,8 +536,6 @@ class POSIXTool(Bcfg2.Client.Tools.Tool):
         configOwner = str(self._norm_entry_uid(entry))
         configGroup = str(self._norm_entry_gid(entry))
         configPerms = int(entry.get('perms'), 8)
-        if entry.get('dev_type'):
-            configPerms |= device_map[entry.get('dev_type')]
         if has_selinux:
             if entry.get("secontext") == "__default__":
                 try:

@@ -64,6 +64,8 @@ class POSIXFile(POSIXTool):
                 different = content != tempdata
 
         if different:
+            self.logger.debug("POSIX: %s has incorrect contents" %
+                              entry.get("name"))
             if self.setup['interactive']:
                 prompt = [entry.get('qtext', '')]
                 if not tbin and content is None:
@@ -155,7 +157,7 @@ class POSIXFile(POSIXTool):
         # /tmp set nosetuid while creating files that are supposed to
         # be setuid
         try:
-            newfile = \
+            (newfd, newfile) = \
                 tempfile.mkstemp(prefix=os.path.basename(entry.get("name")),
                                  dir=os.path.dirname(entry.get("name")))
         except OSError:
@@ -165,7 +167,7 @@ class POSIXFile(POSIXTool):
             return False
         rv = self._set_perms(entry, path=newfile)
         try:
-            open(newfile, 'w').write(filedata)
+            os.fdopen(newfd, 'w').write(filedata)
         except (OSError, IOError):
             err = sys.exc_info()[1]
             self.logger.error("Failed to open temp file %s for writing %s: %s" %

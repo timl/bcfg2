@@ -22,29 +22,27 @@ class POSIXDirectory(POSIXTool):
         ondisk = POSIXTool.verify(self, entry, modlist)
         if not ondisk:
             return False
+
+        if not stat.S_ISDIR(ondisk[stat.ST_MODE]):
+            self.logger.info("POSIX: %s is not a directory" % entry.get('name'))
+            return False
         
         pruneTrue = True
-        ex_ents = []
         if entry.get('prune', 'false').lower() == 'true':
             # check for any extra entries when prune='true' attribute is set
             try:
-                entries = ['/'.join([entry.get('name'), ent])
+                entries = [os.path.join(entry.get('name'), ent)
                            for ent in os.listdir(entry.get('name'))]
-                ex_ents = [e for e in entries if e not in modlist]
-                if ex_ents:
+                extras = [e for e in entries if e not in modlist]
+                if extras:
                     pruneTrue = False
-                    self.logger.info("POSIX: Directory %s contains "
-                                     "extra entries:" % entry.get('name'))
-                    self.logger.info(ex_ents)
-                    nqtext = entry.get('qtext', '') + '\n'
-                    nqtext += "Directory %s contains extra entries: " % \
-                              entry.get('name')
-                    nqtext += ":".join(ex_ents)
-                    entry.set('qtext', nqtext)
-                    [entry.append(XML.Element('Prune', path=x))
-                     for x in ex_ents]
+                    msg = "Directory %s contains extra entries: %s" % \
+                        (entry.get('name'), "; ".join(extras))
+                    self.logger.info("POSIX: " + msg)
+                    entry.set('qtext', entry.get('qtext', '') + '\n' + msg)
+                    for extra in extras:
+                        XML.SubElement('Prune', path=extra)
             except OSError:
-                ex_ents = []
                 pruneTrue = True
 
         return pruneTrue
@@ -54,6 +52,7 @@ class POSIXDirectory(POSIXTool):
         fmode = self._exists(entry)
 
         if fmode and not stat.S_ISDIR(fmode[stat.ST_MODE]):
+            self._paranoid_backup(entry)
             self.logger.info("Found a non-directory entry at %s, removing" %
                               entry.get('name'))
             try:

@@ -176,10 +176,10 @@ class Tool(object):
 
         missing = self.missing_attrs(entry)
         if missing:
-            self.logger.error("Incomplete information for entry %s:%s; cannot verify" \
-                              % (entry.tag, entry.get('name')))
-            self.logger.error("\t... due to absence of %s attribute(s)" % \
-                              (":".join(missing)))
+            self.logger.error("Cannot verify entry %s:%s due to missing "
+                              "required attribute(s): %s" %
+                              (entry.tag, entry.get('name'),
+                               ", ".join(missing)))
             try:
                 self.gatherCurrentData(entry)
             except:

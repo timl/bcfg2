@@ -1,6 +1,6 @@
 import os
 import sys
-from base import POSIXTool
+from base import POSIXTool, device_map
 
 class POSIXDevice(POSIXTool):
     __req__ = ['name', 'dev_type', 'perms', 'owner', 'group']
@@ -13,39 +13,37 @@ class POSIXDevice(POSIXTool):
                 return False
         return True
 
-    def verify(self, entry, _):
+    def verify(self, entry, modlist):
         """Verify device entry."""
-        ondisk = POSIXTool.verify(self, entry)
+        ondisk = POSIXTool.verify(self, entry, modlist)
         if not ondisk:
             return False
         
         # attempt to verify device properties as specified in config
+        rv = True
         dev_type = entry.get('dev_type')
         if dev_type in ['block', 'char']:
             major = int(entry.get('major'))
             minor = int(entry.get('minor'))
             if major != os.major(ondisk.st_rdev):
-                entry.set('current_mtime', mtime)
                 msg = ("Major number for device %s is incorrect. "
                        "Current major is %s but should be %s" %
-                       (path, os.major(ondisk.st_rdev), major))
-                self.logger.debug(msg)
-                entry.set('qtext', entry.get('qtext') + "\n" + msg)
+                       (entry.get("name"), os.major(ondisk.st_rdev), major))
+                self.logger.debug('POSIX: ' + msg)
+                entry.set('qtext', entry.get('qtext', '') + "\n" + msg)
                 rv = False
 
             if minor != os.minor(ondisk.st_rdev):
-                entry.set('current_mtime', mtime)
                 msg = ("Minor number for device %s is incorrect. "
                        "Current minor is %s but should be %s" %
-                       (path, os.minor(ondisk.st_rdev), minor))
-                self.logger.debug(msg)
-                entry.set('qtext', entry.get('qtext') + "\n" + msg)
+                       (entry.get("name"), os.minor(ondisk.st_rdev), minor))
+                self.logger.debug('POSIX: ' + msg)
+                entry.set('qtext', entry.get('qtext', '') + "\n" + msg)
                 rv = False
-
         return rv
 
     def install(self, entry):
-        # todo: paranoid backup
+        self._paranoid_backup(entry)
         if not self._exists(entry, remove=True):
             try:
                 dev_type = entry.get('dev_type')
