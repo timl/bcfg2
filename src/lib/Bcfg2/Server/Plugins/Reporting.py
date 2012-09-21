@@ -76,6 +76,7 @@ class Reporting(Statistics, PullSource):
                     (self.__class__.__name__, client.hostname))
 
     def GetExtra(self, client):
+        """Only called by Bcfg2.Admin modes"""
         self.logger.error("Reporting: GetExtra is not implemented yet")
         return []
 

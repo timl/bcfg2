@@ -22,6 +22,7 @@ if __name__ == '__main__':
     # run collector
     try:
         collector = ReportingCollector(setup)
+        collector.run()
     except ReportingError:
         msg = sys.exc_info()[1]
         logger.error(msg)

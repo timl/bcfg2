@@ -20,9 +20,13 @@ class ReportingCollector(object):
     """The collecting process for reports"""
 
     def __init__(self, setup):
+        """Setup the collector.  This may be called by the daemon or though 
+        bcfg2-admin"""
         self.setup = setup
         self.datastore = setup['repo']
         self.encoding = setup['encoding']
+        self.terminate = None
+        self.context = None
 
         level = logging.DEBUG
 
@@ -54,6 +58,9 @@ class ReportingCollector(object):
                 (self.storage.__class__.__name__, 
                     traceback.format_exc().splitlines()[-1]))
 
+
+    def run(self):
+        """Startup the processing and go!"""
         self.terminate = threading.Event()
         atexit.register(self.shutdown)
         self.context = daemon.DaemonContext()
@@ -89,7 +96,9 @@ class ReportingCollector(object):
 
     def shutdown(self):
         """Cleanup and go"""
-        self.terminate.set()
+        if self.terminate:
+            # this wil be missing if called from bcfg2-admin
+            self.terminate.set()
         if self.transport:
             self.transport.shutdown()
         if self.storage:
