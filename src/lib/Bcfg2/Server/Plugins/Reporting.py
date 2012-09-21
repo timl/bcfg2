@@ -13,7 +13,7 @@ except:
 
 from Bcfg2.Server.Plugin import Statistics, PullSource, PluginInitError
 
-class StatsLocal(Statistics, PullSource):
+class Reporting(Statistics, PullSource):
 
     CLIENT_METADATA_FILEDS = ('profile', 'bundles', 'aliases', 'addresses',
         'groups', 'categories', 'uuid', 'version')
@@ -76,14 +76,14 @@ class StatsLocal(Statistics, PullSource):
                     (self.__class__.__name__, client.hostname))
 
     def GetExtra(self, client):
-        self.logger.error("StatsLocal: GetExtra is not implemented yet")
+        self.logger.error("Reporting: GetExtra is not implemented yet")
         return []
 
     def GetCurrentEntry(self, client, e_type, e_name):
-        self.logger.error("StatsLocal: GetCurrentEntry is not implemented yet")
+        self.logger.error("Reporting: GetCurrentEntry is not implemented yet")
         return []
 
     def shutdown(self):
-        super(StatsLocal, self).shutdown()
+        super(Reporting, self).shutdown()
         if self.transport:
             self.transport.shutdown()
