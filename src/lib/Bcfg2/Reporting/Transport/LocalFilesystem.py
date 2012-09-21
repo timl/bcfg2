@@ -11,6 +11,7 @@ import select
 import time
 import traceback
 import Bcfg2.Server.FileMonitor
+from Bcfg2.Reporting.Collector import ReportingCollector, ReportingError
 from Bcfg2.Reporting.Transport.base import TransportBase, TransportError
 
 try:
@@ -25,6 +26,7 @@ class LocalFilesystem(TransportBase):
         self.work_path = "%s/work" % self.data
         self.logger.debug("LocalFilesystem: work path %s" % self.work_path)
         self.fmon = None
+        self._phony_collector = None
 
         #setup our local paths or die
         if not os.path.exists(self.work_path):
@@ -123,4 +125,38 @@ class LocalFilesystem(TransportBase):
         """Called at program exit"""
         if self.fmon:
             self.fmon.shutdown()
+        if self._phony_collector:
+            self._phony_collector.shutdown()
+
+    def rpc(self, method, *args, **kwargs):
+        """
+        Here this is more of a dummy.  Rather then start a layer
+        which doesn't exist or muck with files, start the collector
+
+        This will all change when other layers are added
+        """
+        try:
+            if not self._phony_collector:
+                self._phony_collector = ReportingCollector(self.setup)
+        except ReportingError:
+            raise TransportError
+        except:
+            self.logger.error("Failed to load collector: %s" % 
+                traceback.format_exc().splitlines()[-1])
+            raise TransportError
+
+        if not method in self._phony_collector.storage.__class__.__rmi__ or \
+                not hasattr(self._phony_collector.storage, method):
+            self.logger.error("Unknown method %s called on storage engine %s" %
+                (method, self._phony_collector.storage.__class__.__name__))
+            raise TransportError
+
+
+        try:
+            cls_method = getattr(self._phony_collector.storage, method)
+            return cls_method(*args, **kwargs)
+        except:
+            self.logger.error("RPC method %s failed: %s" % 
+                (method, traceback.format_exc().splitlines()[-1]))
+            raise TransportError
 

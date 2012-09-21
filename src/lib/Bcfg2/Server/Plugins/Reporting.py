@@ -15,6 +15,8 @@ from Bcfg2.Server.Plugin import Statistics, PullSource, PluginInitError
 
 class Reporting(Statistics, PullSource):
 
+    __rmi__ = ['Ping', 'GetExtra', 'GetCurrentEntry']
+
     CLIENT_METADATA_FILEDS = ('profile', 'bundles', 'aliases', 'addresses',
         'groups', 'categories', 'uuid', 'version')
 
@@ -74,6 +76,12 @@ class Reporting(Statistics, PullSource):
                         traceback.format_exc().splitlines()[-1]))
         self.logger.error("%s: Retry limit reached for %s" %
                     (self.__class__.__name__, client.hostname))
+
+    def Ping(self):
+        try:
+            return self.transport.rpc('Ping')
+        except TransportError:
+            pass
 
     def GetExtra(self, client):
         """Only called by Bcfg2.Admin modes"""

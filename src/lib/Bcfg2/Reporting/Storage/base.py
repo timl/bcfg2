@@ -15,6 +15,8 @@ class StorageImportError(StorageError):
 class StorageBase(object):
     """The base for all storages"""
 
+    __rmi__ = ['Ping', 'GetExtra', 'GetCurrentEntry']
+
     def __init__(self, setup):
         """Do something here"""
         clsname = self.__class__.__name__
@@ -39,4 +41,8 @@ class StorageBase(object):
     def shutdown(self):
         """Called at program exit"""
         pass
+
+    def Ping(self):
+        """Test for communication with reporting collector"""
+        return "Pong"
 

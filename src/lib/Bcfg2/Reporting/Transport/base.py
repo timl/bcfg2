@@ -39,3 +39,7 @@ class TransportBase(object):
         """Called at program exit"""
         pass
 
+    def rpc(self, method, *args, **kwargs):
+        """Send a request for data to the collector"""
+        raise NotImplementedError
+
