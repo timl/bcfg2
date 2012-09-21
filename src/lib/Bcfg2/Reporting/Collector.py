@@ -7,6 +7,8 @@ import threading
 import Bcfg2.Logger
 from Bcfg2.Reporting.Transport import load_transport_from_config, \
     TransportError, TransportImportError
+from Bcfg2.Reporting.Storage import load_storage_from_config, \
+    StorageError, StorageImportError
 
 class ReportingError(Exception):
     """Generic reporting exception"""
@@ -31,10 +33,24 @@ class ReportingCollector(object):
 
         try:
             self.transport = load_transport_from_config(setup)
+            self.storage = load_storage_from_config(setup)
         except TransportError:
             self.logger.error("Failed to load transport: %s" %
                 traceback.format_exc().splitlines()[-1])
             raise ReportingError
+        except StorageError:
+            self.logger.error("Failed to load storage: %s" %
+                traceback.format_exc().splitlines()[-1])
+            raise ReportingError
+
+        try:
+            self.logger.debug("Validating storage %s" % 
+                self.storage.__class__.__name__)
+            self.storage.validate()
+        except:
+            self.logger.error("Storage backed %s failed to validate: %s" %
+                (self.storage.__class__.__name__, 
+                    traceback.format_exc().splitlines()[-1]))
 
         self.terminate = threading.Event()
         atexit.register(self.shutdown)
@@ -51,7 +67,11 @@ class ReportingCollector(object):
                 xdata = self.transport.fetch()
                 if not xdata:
                     continue
-                print xdata
+                try:
+                    self.storage.import_interaction(xdata)
+                except:
+                    #TODO requeue?
+                    raise
             except KeyboardInterrupt:
                 self.shutdown()
             except:
@@ -66,4 +86,6 @@ class ReportingCollector(object):
         self.terminate.set()
         if self.transport:
             self.transport.shutdown()
+        if self.storage:
+            self.storage.shutdown()
 
