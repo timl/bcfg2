@@ -69,7 +69,7 @@ class LocalFilesystem(TransportBase):
             # pseudo.. if nothings pending sleep and loop
             time.sleep(self.timeout)
 
-        if not event or event.filename = self.work_path:
+        if not event or event.filename == self.work_path:
             return None
 
         #deviate from the normal routines here we only want one event
