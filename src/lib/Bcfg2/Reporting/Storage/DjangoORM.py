@@ -8,14 +8,14 @@ from lxml import etree
 from Bcfg2.Reporting.Storage.base import StorageBase, StorageError
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 
+# This will change again
+os.environ['DJANGO_SETTINGS_MODULE'] = 'Bcfg2.settings'
+import Bcfg2.settings
+
 #Used by GetCurrentEntry
 import difflib
 from Bcfg2.Compat import b64decode
 from Bcfg2.Server.Reports.reports.models import Client
-
-# This will change again
-import Bcfg2.settings
-os.environ['DJANGO_SETTINGS_MODULE'] = 'Bcfg2.settings'
 
 class DjangoORM(StorageBase):
     def __init__(self, setup):
