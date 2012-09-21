@@ -1,6 +1,7 @@
 import atexit
 import daemon
 import logging
+import time
 import traceback
 import threading
 
@@ -64,11 +65,15 @@ class ReportingCollector(object):
 
         while not self.terminate.isSet():
             try:
-                xdata = self.transport.fetch()
-                if not xdata:
+                interaction = self.transport.fetch()
+                if not interaction:
                     continue
                 try:
-                    self.storage.import_interaction(xdata)
+                    start = time.time()
+                    self.storage.import_interaction(interaction)
+                    self.logger.info("Imported interaction for %s in %ss" %
+                        (interaction.get('hostname', '<unknown>'),
+                            time.time() - start))
                 except:
                     #TODO requeue?
                     raise

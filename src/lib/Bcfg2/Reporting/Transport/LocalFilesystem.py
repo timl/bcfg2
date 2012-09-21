@@ -107,7 +107,7 @@ class LocalFilesystem(TransportBase):
                 payloadfd = open(payload, "r")
                 interaction = pickle.load(payloadfd)
                 payloadfd.close()
-                #os.unlink(payload)
+                os.unlink(payload)
                 return interaction
             except IOError:
                 self.logger.error("Failed to read payload: %s" %
