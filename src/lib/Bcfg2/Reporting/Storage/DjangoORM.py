@@ -23,11 +23,6 @@ class DjangoORM(StorageBase):
         self._load_stat = None
         self._ClientMetadata = None
 
-    @classmethod
-    def initialize(cls, setup):
-        """Initialzize the Storage"""
-        raise NotImplementedError
-
     def import_interaction(self, interaction):
         """Import the data into the backend"""
 

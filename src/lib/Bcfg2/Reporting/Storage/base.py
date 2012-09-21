@@ -25,11 +25,6 @@ class StorageBase(object):
         self.setup = setup
         self.encoding = setup['encoding']
 
-    @classmethod
-    def initialize(cls, setup):
-        """Initialzize the Storage"""
-        raise NotImplementedError
-
     def import_interaction(self, interaction):
         """Import the data into the backend"""
         raise NotImplementedError
