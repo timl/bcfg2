@@ -57,7 +57,7 @@ class Reporting(Statistics, PullSource):
         for field in self.CLIENT_METADATA_FILEDS:
             try:
                 value = getattr(client, field)
-            except KeyError:
+            except AttributeError:
                 continue
             if value:
                 if isinstance(value, set):
