@@ -11,7 +11,19 @@ try:
 except:
     import pickle
 
-from Bcfg2.Server.Plugin import Statistics, PullSource, PluginInitError
+from Bcfg2.Server.Plugin import Statistics, PullSource, PluginInitError, \
+    PluginExecutionError
+
+def _rpc_call(method):
+    def _real_rpc_call(self, *args, **kwargs):
+        """Wrapper for calls to the reporting collector"""
+        
+        try:
+            return self.transport.rpc(method, *args, **kwargs)
+        except TransportError:
+            # this is needed for Admin.Pull
+            raise PluginExecutionError
+    return _real_rpc_call
 
 class Reporting(Statistics, PullSource):
 
@@ -77,22 +89,12 @@ class Reporting(Statistics, PullSource):
         self.logger.error("%s: Retry limit reached for %s" %
                     (self.__class__.__name__, client.hostname))
 
-    def Ping(self):
-        try:
-            return self.transport.rpc('Ping')
-        except TransportError:
-            pass
-
-    def GetExtra(self, client):
-        """Only called by Bcfg2.Admin modes"""
-        self.logger.error("Reporting: GetExtra is not implemented yet")
-        return []
-
-    def GetCurrentEntry(self, client, e_type, e_name):
-        self.logger.error("Reporting: GetCurrentEntry is not implemented yet")
-        return []
-
     def shutdown(self):
         super(Reporting, self).shutdown()
         if self.transport:
             self.transport.shutdown()
+
+    Ping = _rpc_call('Ping')
+    GetExtra = _rpc_call('GetExtra')
+    GetCurrentEntry = _rpc_call('GetCurrentEntry')
+

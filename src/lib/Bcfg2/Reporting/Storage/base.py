@@ -46,3 +46,11 @@ class StorageBase(object):
         """Test for communication with reporting collector"""
         return "Pong"
 
+    def GetExtra(self, client):
+        """Return a list of extra entries for a client.  Minestruct"""
+        raise NotImplementedError
+
+    def GetCurrentEntry(self, client, e_type, e_name):
+        """Get the current status of an entry on the client"""
+        raise NotImplementedError
+
