@@ -1,5 +1,6 @@
 import atexit
 import daemon
+import lockfile
 import logging
 import time
 import traceback
@@ -58,8 +59,10 @@ class ReportingCollector(object):
         self.context = daemon.DaemonContext()
 
         if self.setup['daemon']:
-            self._daemonize()
-            #open(self.setup['daemon'], "w").write("%s\n" % os.getpid())
+            self.logger.debug("Daemonizing")
+            self.context.pidfile = lockfile.FileLock(self.setup['daemon'])
+            self.context.open()
+            self.logger.info("Starting daemon")
 
         self.transport.start_monitor(self)
 
@@ -77,14 +80,12 @@ class ReportingCollector(object):
                 except:
                     #TODO requeue?
                     raise
-            except KeyboardInterrupt:
+            except (SystemExit, KeyboardInterrupt):
+                self.logger.info("Shutting down")
                 self.shutdown()
             except:
                 self.logger.error("Unhandled exception in main loop %s" %
                     traceback.format_exc().splitlines()[-1])
-
-    def _daemonize(self):
-        raise ReportingError("Not there yet")
 
     def shutdown(self):
         """Cleanup and go"""
