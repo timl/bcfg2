@@ -10,9 +10,13 @@ import os.path
 import select
 import time
 import traceback
+import Bcfg2.Server.FileMonitor
 from Bcfg2.Reporting.Transport.base import TransportBase, TransportError
 
-import Bcfg2.Server.FileMonitor
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 class LocalFilesystem(TransportBase):
     def __init__(self, setup):
@@ -53,18 +57,37 @@ class LocalFilesystem(TransportBase):
         self.fmon.AddMonitor(self.work_path, self)
 
     def store(self, hostname, payload):
-        raise NotImplementedError
+        """Store the file to disk"""
+
+        save_file = "%s/%s-%s" % (self.work_path, hostname, time.time())
+        tmp_file = "%s/.%s-%s" % (self.work_path, hostname, time.time())
+        if os.path.exists(save_file):
+            self.logger.error("%s: Oops.. duplicate statistic in directory." %
+                self.__class__.__name__)
+            raise TransportError
+
+        # using a tmpfile to hopefully avoid the file monitor from grabbing too
+        # soon
+        saved = open(tmp_file, 'w')
+        try:
+            saved.write(payload)
+        except IOError:
+            self.logger.error("Failed to store interaction for %s: %s" %
+                (hostname, traceback.format_exc().splitlines()[-1]))
+            os.unlink(tmp_file)
+        saved.close()
+        os.rename(tmp_file, save_file)
 
     def fetch(self):
         """Fetch the next object"""
         event = None
         fmonfd = self.fmon.fileno()
         if self.fmon.pending():
-           event = self.fmon.get_event()
+            event = self.fmon.get_event()
         elif fmonfd:
             select.select([fmonfd], [], [], self.timeout)
             if self.fmon.pending():
-               event = self.fmon.get_event()
+                event = self.fmon.get_event()
         else:
             # pseudo.. if nothings pending sleep and loop
             time.sleep(self.timeout)
@@ -75,9 +98,25 @@ class LocalFilesystem(TransportBase):
         #deviate from the normal routines here we only want one event
         etype = event.code2str()
         self.logger.debug("Recieved event %s for %s" % (etype, event.filename))
+        if os.path.basename(event.filename)[0] == '.':
+            return None
         if etype in ('created', 'exists'):
             self.logger.debug("Handling event %s" % event.filename)
-            return os.path.join(self.work_path, event.filename)
+            payload = os.path.join(self.work_path, event.filename)
+            try:
+                payloadfd = open(payload, "r")
+                interaction = pickle.load(payloadfd)
+                payloadfd.close()
+                #os.unlink(payload)
+                return interaction
+            except IOError:
+                self.logger.error("Failed to read payload: %s" %
+                    traceback.format_exc().splitlines()[-1])
+            except pickle.UnpicklingError:
+                self.logger.error("Failed to unpickle payload: %s" %
+                    traceback.format_exc().splitlines()[-1])
+                payloadfd.close()
+                raise TransportError
         return None
 
     def shutdown(self):
