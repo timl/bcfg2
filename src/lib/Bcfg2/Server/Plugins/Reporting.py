@@ -11,6 +11,7 @@ try:
 except:
     import pickle
 
+from Bcfg2.Options import REPORTING_COMMON_OPTIONS
 from Bcfg2.Server.Plugin import Statistics, PullSource, PluginInitError, \
     PluginExecutionError
 
@@ -40,6 +41,10 @@ class Reporting(Statistics, PullSource):
 
         self.whoami = platform.node()
         self.transport = None
+
+        core.setup.update(REPORTING_COMMON_OPTIONS)
+        core.setup.reparse()
+        self.logger.error("File limit: %s" % core.setup['reporting_file_limit'])
 
         try:
             self.transport = load_transport_from_config(core.setup)
