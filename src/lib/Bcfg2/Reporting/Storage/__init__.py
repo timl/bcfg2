@@ -23,7 +23,7 @@ def load_storage(storage_name, setup):
         cls = getattr(mod, storage_name)
         return cls(setup)
     except:
-        raise StorageImportError("Transport unavailable: %s" %
+        raise StorageImportError("Storage unavailable: %s" %
             traceback.format_exc().splitlines()[-1])
 
 def load_storage_from_config(setup):
