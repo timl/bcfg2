@@ -9,6 +9,7 @@ except ImproperlyConfigured:
     print("Reports: unable to import django models: %s" % e)
     sys.exit(1)
 
+from django.core.cache import cache
 from django.db import connection, transaction
 from django.db.models import Q
 from datetime import datetime, timedelta
@@ -336,8 +337,6 @@ class BaseEntry(models.Model):
     """ Abstract base for all entry types """
     name = models.CharField(max_length=128, db_index=True)
     hash_key = models.IntegerField(editable=False, db_index=True)
-    state = models.IntegerField(choices=TYPE_CHOICES)
-    exists = models.BooleanField(default=True)
 
     class Meta:
         abstract = True
@@ -363,23 +362,53 @@ class BaseEntry(models.Model):
         return []
 
 
-class FailureEntry(models.Model):
+    @classmethod
+    def entry_get_or_create(cls, act_dict):
+        """Helper to quickly lookup an object"""
+        cls_name = cls().__class__.__name__
+        act_hash = hash_entry(act_dict)
+    
+        # TODO - get form cache and validate
+        act_key = "%s_%s" % (cls_name, act_hash)
+        newact = cache.get(act_key)
+        if newact:
+            return newact
+    
+        acts = cls.objects.filter(hash_key=act_hash)
+        if len(acts) > 0:
+            for act in acts:
+               for key in act_dict:
+                   if act_dict[key] != getattr(act, key):
+                       continue
+                   #match found
+                   newact = act
+                   break
+    
+        # worst case, its new
+        if not newact:
+            newact = cls(**act_dict)
+            newact.save(hash_key=act_hash)
+    
+        cache.set(act_key, newact)
+        return newact
+
+
+class SuccessEntry(BaseEntry):
+    """Base for successful entries"""
+    state = models.IntegerField(choices=TYPE_CHOICES)
+    exists = models.BooleanField(default=True)
+
+    class Meta:
+        abstract = True
+
+
+class FailureEntry(BaseEntry):
     """Represents objects that failed to bind"""
-    name = models.CharField(max_length=128, db_index=True)
-    hash_key = models.IntegerField(editable=False, db_index=True)
     entry_type = models.CharField(max_length=128, db_index=True)
     message = models.TextField()
 
-    def save(self, *args, **kwargs):
-        if 'hash_key' in kwargs:
-            self.hash_key = kwargs['hash_key']
-            del kwargs['hash_key']
-        else:
-            self.hash_key = hash_entry(self.__dict__)
-        super(FailureEntry, self).save(*args, **kwargs)
 
-
-class ActionEntry(BaseEntry):
+class ActionEntry(SuccessEntry):
     """ The new model for package information """
     status = models.CharField(max_length=128, default="check")
     output = models.IntegerField(default=0)
@@ -387,7 +416,7 @@ class ActionEntry(BaseEntry):
     #TODO - prune
 
 
-class PackageEntry(BaseEntry):
+class PackageEntry(SuccessEntry):
     """ The new model for package information """
 
     # if this is an extra entry trget_version will be empty
@@ -398,7 +427,7 @@ class PackageEntry(BaseEntry):
     #TODO - prune
 
 
-class PathEntry(BaseEntry):
+class PathEntry(SuccessEntry):
     """reason why modified or bad entry did not verify, or changed."""
 
     PATH_TYPES = (
@@ -462,7 +491,7 @@ class DeviceEntry(PathEntry):
     current_minor = models.IntegerField()
 
 
-class ServiceEntry(BaseEntry):
+class ServiceEntry(SuccessEntry):
     """ The new model for package information """
     target_status = models.CharField(max_length=128, default='')
     current_status = models.CharField(max_length=128, default='')

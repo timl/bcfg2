@@ -21,35 +21,6 @@ import difflib
 from Bcfg2.Compat import b64decode
 from Bcfg2.Server.Reports.reports.models import *
 
-def _entry_get_or_create(cls, act_dict):
-    """Helper to quickly lookup an object"""
-    cls_name = cls().__class__.__name__
-    act_hash = hash_entry(act_dict)
-
-    # TODO - get form cache and validate
-    act_key = "%s_%s" % (cls_name, act_hash)
-    newact = cache.get(act_key)
-    if newact:
-        return newact
-
-    acts = cls.objects.filter(hash_key=act_hash)
-    if len(acts) > 0:
-        for act in acts:
-           for key in act_dict:
-               if act_dict[key] != getattr(act, key):
-                   continue
-               #match found
-               newact = act
-               break
-
-    # worst case, its new
-    if not newact:
-        newact = cls(**act_dict)
-        newact.save(hash_key=act_hash)
-               
-    cache.set(act_key, newact)
-    return newact
-
 
 class DjangoORM(StorageBase):
     def __init__(self, setup):
@@ -136,7 +107,7 @@ class DjangoORM(StorageBase):
                 if failure:
                     act_dict = dict(name=name, entry_type=entry_type,
                         message=failure)
-                    newact = _entry_get_or_create(FailureEntry, act_dict)
+                    newact = FailureEntry.entry_get_or_create(act_dict)
                     updates['failures'].append(newact)
                     continue
 
@@ -146,7 +117,7 @@ class DjangoORM(StorageBase):
                     act_dict['status'] = entry.get('status', default="check")
                     act_dict['output'] = entry.get('rc', default=-1)
                     self.logger.debug("Adding action %s" % name)
-                    updates['actions'].append(_entry_get_or_create(ActionEntry, act_dict))
+                    updates['actions'].append(ActionEntry.entry_get_or_create(act_dict))
                 elif entry_type == 'Package':
                     act_dict['target_version'] = entry.get('version', default='')
                     act_dict['current_version'] = entry.get('current_version', default='')
@@ -163,14 +134,14 @@ class DjangoORM(StorageBase):
                             if arch:
                                 act_dict['current_version'] += "." + arch
                             self.logger.debug("Adding package %s %s" % (name, act_dict['current_version']))
-                            updates['packages'].append(_entry_get_or_create(PackageEntry, act_dict))
+                            updates['packages'].append(PackageEntry.entry_get_or_create(act_dict))
                     else:
 
                         self.logger.debug("Adding package %s %s" % (name, act_dict['target_version']))
 
                         # not implemented yet
                         act_dict['verification_details'] = entry.get('verification_details', '')
-                        updates['packages'].append(_entry_get_or_create(PackageEntry, act_dict))
+                        updates['packages'].append(PackageEntry.entry_get_or_create(act_dict))
 
                 elif entry_type == 'Path':
                     path_type = entry.get("type").lower()
@@ -196,7 +167,7 @@ class DjangoORM(StorageBase):
                         act_dict['target_path'] = entry.get('to', default="")
                         act_dict['current_path'] = entry.get('current_to', default="")
                         self.logger.debug("Adding link %s" % name)
-                        updates['paths'].append(_entry_get_or_create(LinkEntry, act_dict))
+                        updates['paths'].append(LinkEntry.entry_get_or_create(act_dict))
                         continue
                     elif path_type == 'device':
                         #TODO devices
@@ -230,7 +201,7 @@ class DjangoORM(StorageBase):
                             else:
                                 act_dict['details'] = cdata
                     self.logger.debug("Adding path %s" % name)
-                    updates['paths'].append(_entry_get_or_create(PathEntry, act_dict))
+                    updates['paths'].append(PathEntry.entry_get_or_create(act_dict))
 
 
                     #TODO - secontext
@@ -240,7 +211,7 @@ class DjangoORM(StorageBase):
                     act_dict['target_status'] = entry.get('status', default='')
                     act_dict['current_status'] = entry.get('current_status', default='')
                     self.logger.debug("Adding service %s" % name)
-                    updates['services'].append(_entry_get_or_create(ServiceEntry, act_dict))
+                    updates['services'].append(ServiceEntry.entry_get_or_create(act_dict))
                 elif entry_type == 'SELinux':
                     self.logger.info("SELinux not implemented yet")
                 else:
