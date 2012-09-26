@@ -51,6 +51,7 @@ class LocalFilesystem(TransportBase):
         fmdebug = setup.get('debug', False)
         try:
             self.fmon = fmon(debug=fmdebug)
+            self.logger.info("Using the %s file monitor" % self.fmon.__class__.__name__)
         except IOError:
             msg = "Failed to instantiate file monitor %s" % setup['filemonitor']
             self.logger.error(msg, exc_info=1)
