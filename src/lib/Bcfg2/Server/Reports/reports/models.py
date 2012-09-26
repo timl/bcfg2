@@ -163,9 +163,9 @@ class Interaction(models.Model):
     goodcount = models.IntegerField()  # of good config-items
     totalcount = models.IntegerField()  # of total config-items
     server = models.CharField(max_length=256)  # Name of the server used for the interaction
-    bad_entry_count = models.IntegerField(default=0)
-    modified_entry_count = models.IntegerField(default=0)
-    extra_entry_count = models.IntegerField(default=0)
+    bad_entries = models.IntegerField(default=0)
+    modified_entries = models.IntegerField(default=0)
+    extra_entries = models.IntegerField(default=0)
 
     actions = models.ManyToManyField("ActionEntry")
     packages = models.ManyToManyField("PackageEntry")
@@ -189,7 +189,7 @@ class Interaction(models.Model):
             return 0
 
     def isclean(self):
-        if (self.bad_entry_count() == 0 and self.goodcount == self.totalcount):
+        if (self.bad_entries == 0 and self.goodcount == self.totalcount):
             return True
         else:
             return False
