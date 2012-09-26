@@ -93,6 +93,14 @@ def read_config(cfile=DEFAULT_CONFIG, repo=None, quiet=False):
     else:
         MEDIA_URL = '/site_media'
 
+    if has_django and django.VERSION[0] == 1 and django.VERSION[1] < 3:
+        CACHE_BACKEND = 'locmem:///'
+    else:
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            }
+        }
 
 # initialize settings from /etc/bcfg2-web.conf or /etc/bcfg2.conf, or
 # set up basic defaults.  this lets manage.py work in all cases
