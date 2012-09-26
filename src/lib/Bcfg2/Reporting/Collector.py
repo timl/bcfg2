@@ -28,7 +28,12 @@ class ReportingCollector(object):
         self.terminate = None
         self.context = None
 
-        level = logging.DEBUG
+        if setup['debug']:
+            level = logging.DEBUG
+        elif setup['verbose']:
+            level = logging.INFO
+        else:
+            level = logging.WARNING
 
         Bcfg2.Logger.setup_logging('bcfg2-report-collector',
                                    to_console=logging.INFO,

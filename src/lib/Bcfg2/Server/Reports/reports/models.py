@@ -14,6 +14,11 @@ from django.db.models import Q
 from datetime import datetime, timedelta
 from time import strptime
 
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
 KIND_CHOICES = (
     #These are the kinds of config elements
     ('Package', 'Package'),
@@ -42,6 +47,20 @@ def convert_entry_type_to_id(type_name):
         if e_name.lower() == type_name.lower():
             return e_id
     return -1
+
+
+def hash_entry(entry_dict):
+    """
+    Build a key for this based on its data
+
+    entry_dict = a dict of all the data identifying this
+    """
+    dataset = []
+    for key in sorted(entry_dict.keys()):
+        if key in ('id', 'hash_key') or key.startswith('_'):
+           continue
+        dataset.append( (key, entry_dict[key]) )
+    return hash(pickle.dumps(dataset))
 
 
 class ClientManager(models.Manager):
@@ -144,9 +163,15 @@ class Interaction(models.Model):
     goodcount = models.IntegerField()  # of good config-items
     totalcount = models.IntegerField()  # of total config-items
     server = models.CharField(max_length=256)  # Name of the server used for the interaction
-    bad_entries = models.IntegerField(default=-1)
-    modified_entries = models.IntegerField(default=-1)
-    extra_entries = models.IntegerField(default=-1)
+    bad_entry_count = models.IntegerField(default=0)
+    modified_entry_count = models.IntegerField(default=0)
+    extra_entry_count = models.IntegerField(default=0)
+
+    actions = models.ManyToManyField("ActionEntry")
+    packages = models.ManyToManyField("PackageEntry")
+    paths = models.ManyToManyField("PathEntry")
+    services = models.ManyToManyField("ServiceEntry")
+    failures = models.ManyToManyField("FailureEntry")
 
     def __str__(self):
         return "With " + self.client.name + " @ " + self.timestamp.isoformat()
@@ -202,126 +227,27 @@ class Interaction(models.Model):
         return self.totalcount - self.goodcount
 
     def bad(self):
-        return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_BAD)
-
-    def bad_entry_count(self):
-        """Number of bad entries.  Store the count in the interation field to save db queries."""
-        if self.bad_entries < 0:
-            self.bad_entries = Entries_interactions.objects.filter(interaction=self, type=TYPE_BAD).count()
-            self.save()
-        return self.bad_entries
+        return []
+        #return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_BAD)
 
     def modified(self):
-        return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_MODIFIED)
-
-    def modified_entry_count(self):
-        """Number of modified entries.  Store the count in the interation field to save db queries."""
-        if self.modified_entries < 0:
-            self.modified_entries = Entries_interactions.objects.filter(interaction=self, type=TYPE_MODIFIED).count()
-            self.save()
-        return self.modified_entries
+        return []
+        #return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_MODIFIED)
 
     def extra(self):
-        return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_EXTRA)
-
-    def extra_entry_count(self):
-        """Number of extra entries.  Store the count in the interation field to save db queries."""
-        if self.extra_entries < 0:
-            self.extra_entries = Entries_interactions.objects.filter(interaction=self, type=TYPE_EXTRA).count()
-            self.save()
-        return self.extra_entries
+        return []
+        #return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_EXTRA)
 
     objects = InteractiveManager()
 
     class Admin:
         list_display = ('client', 'timestamp', 'state')
         list_filter = ['client', 'timestamp']
-        pass
 
     class Meta:
         get_latest_by = 'timestamp'
         ordering = ['-timestamp']
         unique_together = ("client", "timestamp")
-
-
-class Reason(models.Model):
-    """reason why modified or bad entry did not verify, or changed."""
-    owner = models.CharField(max_length=255, blank=True)
-    current_owner = models.CharField(max_length=255, blank=True)
-    group = models.CharField(max_length=255, blank=True)
-    current_group = models.CharField(max_length=255, blank=True)
-    perms = models.CharField(max_length=4, blank=True)
-    current_perms = models.CharField(max_length=4, blank=True)
-    status = models.CharField(max_length=128, blank=True)
-    current_status = models.CharField(max_length=128, blank=True)
-    to = models.CharField(max_length=1024, blank=True)
-    current_to = models.CharField(max_length=1024, blank=True)
-    version = models.CharField(max_length=1024, blank=True)
-    current_version = models.CharField(max_length=1024, blank=True)
-    current_exists = models.BooleanField()  # False means its missing. Default True
-    current_diff = models.TextField(max_length=1024*1024, blank=True)
-    is_binary = models.BooleanField(default=False)
-    is_sensitive = models.BooleanField(default=False)
-    unpruned = models.TextField(max_length=4096, blank=True, default='')
-
-    def _str_(self):
-        return "Reason"
-
-    def short_list(self):
-        rv = []
-        if self.current_owner or self.current_group or self.current_perms:
-            rv.append("File permissions")
-        if self.current_status:
-            rv.append("Incorrect status")
-        if self.current_to:
-            rv.append("Incorrect target")
-        if self.current_version or self.version == 'auto':
-            rv.append("Wrong version")
-        if not self.current_exists:
-            rv.append("Missing")
-        if self.current_diff or self.is_sensitive:
-            rv.append("Incorrect data")
-        if self.unpruned:
-            rv.append("Directory has extra files")
-        if len(rv) == 0:
-            rv.append("Exists")
-        return rv
-
-    @staticmethod
-    @transaction.commit_on_success
-    def prune_orphans():
-        '''Prune oprhaned rows... no good way to use the ORM'''
-        cursor = connection.cursor()
-        cursor.execute('delete from reports_reason where not exists (select rei.id from reports_entries_interactions rei where rei.reason_id = reports_reason.id)')
-        transaction.set_dirty()
-
-
-class Entries(models.Model):
-    """Contains all the entries feed by the client."""
-    name = models.CharField(max_length=128, db_index=True)
-    kind = models.CharField(max_length=16, choices=KIND_CHOICES, db_index=True)
-
-    def __str__(self):
-        return self.name
-
-    @staticmethod
-    @transaction.commit_on_success
-    def prune_orphans():
-        '''Prune oprhaned rows... no good way to use the ORM'''
-        cursor = connection.cursor()
-        cursor.execute('delete from reports_entries where not exists (select rei.id from reports_entries_interactions rei where rei.entry_id = reports_entries.id)')
-        transaction.set_dirty()
-
-    class Meta:
-        unique_together = ("name", "kind")
-
-
-class Entries_interactions(models.Model):
-    """Define the relation between the reason, the interaction and the entry."""
-    entry = models.ForeignKey(Entries)
-    reason = models.ForeignKey(Reason)
-    interaction = models.ForeignKey(Interaction)
-    type = models.IntegerField(choices=TYPE_CHOICES)
 
 
 class Performance(models.Model):
@@ -389,5 +315,158 @@ class InteractionMetadata(models.Model):
     profile = models.ForeignKey(Group, related_name="+")
     groups = models.ManyToManyField(Group)
     bundles = models.ManyToManyField(Bundle)
+
+
+# new interaction models
+class FilePerms(models.Model):
+    owner = models.CharField(max_length=128)
+    group = models.CharField(max_length=128)
+    perms = models.CharField(max_length=128)
+
+    class Meta:
+        unique_together = ('owner', 'group', 'perms')
+
+
+class FileAcl(models.Model):
+    """Placeholder"""
+    name = models.CharField(max_length=128, db_index=True)
+
+
+class BaseEntry(models.Model):
+    """ Abstract base for all entry types """
+    name = models.CharField(max_length=128, db_index=True)
+    hash_key = models.IntegerField(editable=False, db_index=True)
+    state = models.IntegerField(choices=TYPE_CHOICES)
+    exists = models.BooleanField(default=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if 'hash_key' in kwargs:
+            self.hash_key = kwargs['hash_key']
+            del kwargs['hash_key']
+        else:
+            self.hash_key = hash_entry(self.__dict__)
+        super(BaseEntry, self).save(*args, **kwargs)
+
+#    @staticmethod
+#    @transaction.commit_on_success
+#    def prune_orphans():
+#        '''Prune oprhaned rows... no good way to use the ORM'''
+#        cursor = connection.cursor()
+#        cursor.execute('delete from reports_entries where not exists (select rei.id from reports_entries_interactions rei where rei.entry_id = reports_entries.id)')
+#        transaction.set_dirty()
+
+    def short_list(self):
+        """todo"""
+        return []
+
+
+class FailureEntry(models.Model):
+    """Represents objects that failed to bind"""
+    name = models.CharField(max_length=128, db_index=True)
+    hash_key = models.IntegerField(editable=False, db_index=True)
+    entry_type = models.CharField(max_length=128, db_index=True)
+    message = models.TextField()
+
+    def save(self, *args, **kwargs):
+        if 'hash_key' in kwargs:
+            self.hash_key = kwargs['hash_key']
+            del kwargs['hash_key']
+        else:
+            self.hash_key = hash_entry(self.__dict__)
+        super(FailureEntry, self).save(*args, **kwargs)
+
+
+class ActionEntry(BaseEntry):
+    """ The new model for package information """
+    status = models.CharField(max_length=128, default="check")
+    output = models.IntegerField(default=0)
+
+    #TODO - prune
+
+
+class PackageEntry(BaseEntry):
+    """ The new model for package information """
+
+    # if this is an extra entry trget_version will be empty
+    target_version = models.CharField(max_length=1024, default='')
+    current_version = models.CharField(max_length=1024)
+    verification_details = models.TextField(default="")
+
+    #TODO - prune
+
+
+class PathEntry(BaseEntry):
+    """reason why modified or bad entry did not verify, or changed."""
+
+    PATH_TYPES = (
+        ("device", "Device"),
+        ("directory", "Directory"),
+        ("hardlink", "Hard Link"),
+        ("nonexistent", "Non Existent"),
+        ("permissions", "Permissions"),
+        ("symlink", "Symlink"),
+    )
+
+    DETAIL_UNUSED = 0
+    DETAIL_DIFF = 1
+    DETAIL_BINARY = 2
+    DETAIL_SENSITIVE = 3
+    DETAIL_SIZE_LIMIT = 4
+    DETAIL_VCS = 5
+    DETAIL_PRUNED = 6
+
+    DETAIL_CHOICES = (
+        (DETAIL_UNUSED, 'Unused'),
+        (DETAIL_DIFF, 'Diff'),
+        (DETAIL_BINARY, 'Binary'),
+        (DETAIL_SENSITIVE, 'Sensitive'),
+        (DETAIL_SIZE_LIMIT, 'Size limit exceeded'),
+        (DETAIL_VCS, 'VCS output'),
+        (DETAIL_PRUNED, 'Pruned paths'),
+    )
+
+    path_type = models.CharField(max_length=128, choices=PATH_TYPES)
+
+    target_perms = models.ForeignKey(FilePerms, related_name="+")
+    current_perms = models.ForeignKey(FilePerms, related_name="+")
+
+    acls = models.ManyToManyField(FileAcl)
+
+    detail_type = models.IntegerField(default=0,
+        choices=DETAIL_CHOICES)
+    details = models.TextField(default='')
+
+
+class LinkEntry(PathEntry):
+    """Sym/Hard Link types"""
+    target_path = models.CharField(max_length=1024, blank=True)
+    current_path = models.CharField(max_length=1024, blank=True)
+
+
+class DeviceEntry(PathEntry):
+    """Device types.  Best I can tell the client driver needs work here"""
+    DEVICE_TYPES = (
+        ("block", "Block"),
+        ("char", "Char"),
+        ("fifo", "Fifo"),
+    )
+
+    device_type = models.CharField(max_length=16, choices=DEVICE_TYPES)
+
+    target_major = models.IntegerField()
+    target_minor = models.IntegerField()
+    current_major = models.IntegerField()
+    current_minor = models.IntegerField()
+
+
+class ServiceEntry(BaseEntry):
+    """ The new model for package information """
+    target_status = models.CharField(max_length=128, default='')
+    current_status = models.CharField(max_length=128, default='')
+
+    #TODO - prune
 
 

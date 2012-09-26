@@ -30,9 +30,8 @@ sys.path.pop()
 os.environ['DJANGO_SETTINGS_MODULE'] = '%s.settings' % project_name
 from django.db import connection, transaction
 
-from Bcfg2.Server.Reports.reports.models import Client, Interaction, Entries, \
-                                Entries_interactions, Performance, \
-                                Reason
+from Bcfg2.Server.Reports.reports.models import Client, Interaction, \
+                                Performance
 
 
 def printStats(fn):
@@ -54,7 +53,8 @@ def printStats(fn):
         self.log.info("Interactions removed: %s" %
                       (start_i - Interaction.objects.count()))
         self.log.info("Interactions->Entries removed: %s" %
-                      (start_ei - Entries_interactions.objects.count()))
+                      (start_ei - 0))
+        #              (start_ei - Entries_interactions.objects.count()))
         self.log.info("Metrics removed: %s" %
                       (start_perf - Performance.objects.count()))
 
@@ -203,9 +203,9 @@ class Reports(Bcfg2.Server.Admin.Mode):
         Reason.prune_orphans()
         self.log.info("Pruned %d Reason records" % (start_count - Reason.objects.count()))
 
-        start_count = Entries.objects.count()
-        Entries.prune_orphans()
-        self.log.info("Pruned %d Entries records" % (start_count - Entries.objects.count()))
+        #start_count = Entries.objects.count()
+        #Entries.prune_orphans()
+        #self.log.info("Pruned %d Entries records" % (start_count - Entries.objects.count()))
 
     def django_command_proxy(self, command):
         '''Call a django command'''
