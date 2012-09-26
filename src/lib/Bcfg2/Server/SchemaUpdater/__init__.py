@@ -204,7 +204,8 @@ def update_database():
                     "updates")
                 updaters.append(updates())
             except ImportError:
-                logger.error("Failed to import %s" % submodule)
+                logger.error("Failed to import %s: %s" % (submodule,
+                    traceback.format_exc().splitlines()[-1]))
             except AttributeError:
                 logger.warning("Module %s does not have an updates function" %
                                submodule)
