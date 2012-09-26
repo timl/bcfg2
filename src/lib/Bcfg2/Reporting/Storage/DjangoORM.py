@@ -123,6 +123,7 @@ class DjangoORM(StorageBase):
                    ('Extra/*', TYPE_EXTRA),
                    ('Modified/*', TYPE_MODIFIED)]
         for (xpath, state) in pattern:
+            updates = dict(failures=[], paths=[], packages=[], actions=[], services=[])
             for entry in stats.findall(xpath):
                 counter_fields[state] = counter_fields[state] + 1
 
@@ -136,7 +137,7 @@ class DjangoORM(StorageBase):
                     act_dict = dict(name=name, entry_type=entry_type,
                         message=failure)
                     newact = _entry_get_or_create(FailureEntry, act_dict)
-                    inter.failures.add(newact)
+                    updates['failures'].append(newact)
                     continue
 
                 act_dict = dict(name=name, state=state, exists=exists)
@@ -145,12 +146,11 @@ class DjangoORM(StorageBase):
                     act_dict['status'] = entry.get('status', default="check")
                     act_dict['output'] = entry.get('rc', default=-1)
                     self.logger.debug("Adding action %s" % name)
-                    self.actions(_entry_get_or_create(ActionEntry, act_dict))
+                    updates['actions'].append(_entry_get_or_create(ActionEntry, act_dict))
                 elif entry_type == 'Package':
                     act_dict['target_version'] = entry.get('version', default='')
                     act_dict['current_version'] = entry.get('current_version', default='')
 
-                    pkgs = []
                     # extra entries are a bit different.  They can have Instance objects
                     if not act_dict['target_version']:
                         for instance in entry.findall("Instance"):
@@ -163,16 +163,14 @@ class DjangoORM(StorageBase):
                             if arch:
                                 act_dict['current_version'] += "." + arch
                             self.logger.debug("Adding package %s %s" % (name, act_dict['current_version']))
-                            pkgs.append(_entry_get_or_create(PackageEntry, act_dict))
+                            updates['packages'].append(_entry_get_or_create(PackageEntry, act_dict))
                     else:
 
                         self.logger.debug("Adding package %s %s" % (name, act_dict['target_version']))
 
                         # not implemented yet
                         act_dict['verification_details'] = entry.get('verification_details', '')
-                        pkgs.append(_entry_get_or_create(PackageEntry, act_dict))
-                    for pkg in pkgs:
-                        inter.packages.add(pkg)
+                        updates['packages'].append(_entry_get_or_create(PackageEntry, act_dict))
 
                 elif entry_type == 'Path':
                     path_type = entry.get("type").lower()
@@ -198,7 +196,7 @@ class DjangoORM(StorageBase):
                         act_dict['target_path'] = entry.get('to', default="")
                         act_dict['current_path'] = entry.get('current_to', default="")
                         self.logger.debug("Adding link %s" % name)
-                        inter.paths.add(_entry_get_or_create(LinkEntry, act_dict))
+                        updates['paths'].append(_entry_get_or_create(LinkEntry, act_dict))
                         continue
                     elif path_type == 'device':
                         #TODO devices
@@ -232,7 +230,7 @@ class DjangoORM(StorageBase):
                             else:
                                 act_dict['details'] = cdata
                     self.logger.debug("Adding path %s" % name)
-                    inter.paths.add(_entry_get_or_create(PathEntry, act_dict))
+                    updates['paths'].append(_entry_get_or_create(PathEntry, act_dict))
 
 
                     #TODO - secontext
@@ -242,11 +240,14 @@ class DjangoORM(StorageBase):
                     act_dict['target_status'] = entry.get('status', default='')
                     act_dict['current_status'] = entry.get('current_status', default='')
                     self.logger.debug("Adding service %s" % name)
-                    inter.services.add(_entry_get_or_create(ServiceEntry, act_dict))
+                    updates['services'].append(_entry_get_or_create(ServiceEntry, act_dict))
                 elif entry_type == 'SELinux':
                     self.logger.info("SELinux not implemented yet")
                 else:
                     self.logger.error("Unknown type %s not handled by reporting yet" % entry_type)
+
+        for entry_type in updates.keys():
+            getattr(inter, entry_type).add(*updates[entry_type])
 
             
     def import_interaction(self, interaction):
