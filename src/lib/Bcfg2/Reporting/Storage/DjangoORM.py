@@ -122,8 +122,8 @@ class DjangoORM(StorageBase):
         pattern = [('Bad/*', TYPE_BAD),
                    ('Extra/*', TYPE_EXTRA),
                    ('Modified/*', TYPE_MODIFIED)]
+        updates = dict(failures=[], paths=[], packages=[], actions=[], services=[])
         for (xpath, state) in pattern:
-            updates = dict(failures=[], paths=[], packages=[], actions=[], services=[])
             for entry in stats.findall(xpath):
                 counter_fields[state] = counter_fields[state] + 1
 
@@ -246,8 +246,14 @@ class DjangoORM(StorageBase):
                 else:
                     self.logger.error("Unknown type %s not handled by reporting yet" % entry_type)
 
+        inter.bad_entries = counter_fields[TYPE_BAD]
+        inter.modified_entries = counter_fields[TYPE_MODIFIED]
+        inter.extra_entries = counter_fields[TYPE_EXTRA]
+        inter.save()
         for entry_type in updates.keys():
             getattr(inter, entry_type).add(*updates[entry_type])
+
+        # TODO - performance metrics
 
             
     def import_interaction(self, interaction):
