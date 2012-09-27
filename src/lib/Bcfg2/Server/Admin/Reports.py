@@ -12,7 +12,7 @@ from lxml.etree import XML, XMLSyntaxError
 
 from Bcfg2.Compat import ConfigParser, md5
 
-import Bcfg2.settings
+from Bcfg2 import settings
 
 # Load django and reports stuff _after_ we know we can load settings
 import django.core.management
@@ -20,7 +20,7 @@ from Bcfg2.Server.Reports.importscript import load_stats
 from Bcfg2.Server.SchemaUpdater import update_database, UpdaterError
 from Bcfg2.Server.Reports.utils import *
 
-project_directory = os.path.dirname(Bcfg2.settings.__file__)
+project_directory = os.path.dirname(settings.__file__)
 project_name = os.path.basename(project_directory)
 sys.path.append(os.path.join(project_directory, '..'))
 project_module = __import__(project_name, '', '', [''])
@@ -30,7 +30,7 @@ sys.path.pop()
 os.environ['DJANGO_SETTINGS_MODULE'] = '%s.settings' % project_name
 from django.db import connection, transaction
 
-from Bcfg2.Server.Reports.reports.models import Client, Interaction, \
+from Bcfg2.Reporting.models import Client, Interaction, \
                                 Performance
 
 
@@ -272,7 +272,7 @@ class Reports(Bcfg2.Server.Admin.Mode):
             self.log.debug("Filtering by maxdate: %s" % maxdate)
             ipurge = ipurge.filter(timestamp__lt=maxdate)
 
-        if Bcfg2.settings.DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+        if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
             grp_limit = 100
         else:
             grp_limit = 1000
