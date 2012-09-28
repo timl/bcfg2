@@ -6,9 +6,8 @@ import os
 import traceback
 from lxml import etree
 
-# This will change again
 os.environ['DJANGO_SETTINGS_MODULE'] = 'Bcfg2.settings'
-import Bcfg2.settings
+from Bcfg2 import settings
 
 from Bcfg2.Compat import md5
 from Bcfg2.Reporting.Storage.base import StorageBase, StorageError
@@ -19,7 +18,7 @@ from django.db import transaction
 #Used by GetCurrentEntry
 import difflib
 from Bcfg2.Compat import b64decode
-from Bcfg2.Server.Reports.reports.models import *
+from Bcfg2.Reporting.models import *
 
 
 class DjangoORM(StorageBase):
@@ -240,7 +239,7 @@ class DjangoORM(StorageBase):
     def validate(self):
         """Validate backend storage.  Should be called once when loaded"""
 
-        Bcfg2.settings.read_config(repo=self.setup['repo'])
+        settings.read_config(repo=self.setup['repo'])
 
         # verify our database schema
         try:

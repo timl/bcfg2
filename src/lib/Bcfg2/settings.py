@@ -8,6 +8,13 @@ try:
 except:
     has_django = False
 
+# required for reporting
+try:
+    import south
+    has_south = True
+except:
+    has_south = False
+
 DATABASES = dict()
 
 # Django < 1.2 compat
@@ -123,9 +130,14 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.sites',
     'django.contrib.admin',
-    'Bcfg2.Server.Reports.reports',
-    'Bcfg2.Server'
+    #'Bcfg2.Server.Reports.reports',
+    'Bcfg2.Server',
 )
+if has_south:
+    INSTALLED_APPS = INSTALLED_APPS + (
+        'south',
+        'Bcfg2.Reporting',
+    )
 
 # Imported from Bcfg2.Server.Reports
 MEDIA_ROOT = ''

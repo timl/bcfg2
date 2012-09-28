@@ -8,15 +8,13 @@ import pickle
 import platform
 import sys
 import traceback
-from lxml.etree import XML, XMLSyntaxError
 
-from Bcfg2.Compat import ConfigParser, md5
+from Bcfg2.Compat import md5
 
 from Bcfg2 import settings
 
 # Load django and reports stuff _after_ we know we can load settings
-import django.core.management
-from Bcfg2.Server.SchemaUpdater import update_database, UpdaterError
+from django.core import management
 from Bcfg2.Server.Reports.utils import *
 
 project_directory = os.path.dirname(settings.__file__)
@@ -95,10 +93,15 @@ class Reports(Bcfg2.Server.Admin.Mode):
         elif args[0] == 'scrub':
             self.scrub()
         elif args[0] in ['init', 'update']:
+            if self.setup['verbose'] or self.setup['debug']:
+                vrb = 2
+            else:
+                vrb = 0
             try:
-                update_database()
-            except UpdaterError:
-                print("Update failed")
+                management.call_command("syncdb", verbosity=vrb)
+                management.call_command("migrate", verbosity=vrb)
+            except:
+                print("Update failed: %s" % traceback.format_exc().splitlines()[-1])
                 raise SystemExit(-1)
         elif args[0] == 'purge':
             expired = False
