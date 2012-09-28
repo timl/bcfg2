@@ -1,7 +1,7 @@
 from django.conf.urls.defaults import *
 from django.core.urlresolvers import reverse, NoReverseMatch
 from django.http import HttpResponsePermanentRedirect
-from Bcfg2.Server.Reports.utils import filteredUrls, paginatedUrls, timeviewUrls
+from Bcfg2.Reporting.utils import filteredUrls, paginatedUrls, timeviewUrls
 
 def newRoot(request):
     try:
@@ -10,7 +10,7 @@ def newRoot(request):
         grid_view = '/grid'
     return HttpResponsePermanentRedirect(grid_view)
 
-urlpatterns = patterns('Bcfg2.Server.Reports.reports',
+urlpatterns = patterns('Bcfg2.Reporting',
     (r'^$', newRoot),
 
     url(r'^manage/?$', 'views.client_manage', name='reports_client_manage'),
@@ -20,7 +20,7 @@ urlpatterns = patterns('Bcfg2.Server.Reports.reports',
     url(r'^entry/(?P<eid>\w+)/?$', 'views.entry_status', name='reports_entry'),
 )
 
-urlpatterns += patterns('Bcfg2.Server.Reports.reports',
+urlpatterns += patterns('Bcfg2.Reporting',
     *timeviewUrls(
         (r'^summary/?$', 'views.display_summary', None, 'reports_summary'),
         (r'^timing/?$', 'views.display_timing', None, 'reports_timing'),
@@ -28,7 +28,7 @@ urlpatterns += patterns('Bcfg2.Server.Reports.reports',
         (r'^common/?$', 'views.common_problems', None, 'reports_common_problems'),
 ))
 
-urlpatterns += patterns('Bcfg2.Server.Reports.reports',
+urlpatterns += patterns('Bcfg2.Reporting',
     *filteredUrls(*timeviewUrls(
         (r'^grid/?$', 'views.client_index', None, 'reports_grid_view'),
         (r'^detailed/?$',
@@ -36,7 +36,7 @@ urlpatterns += patterns('Bcfg2.Server.Reports.reports',
         (r'^elements/(?P<type>\w+)/?$', 'views.config_item_list', None, 'reports_item_list'),
 )))
 
-urlpatterns += patterns('Bcfg2.Server.Reports.reports',
+urlpatterns += patterns('Bcfg2.Reporting',
     *paginatedUrls( *filteredUrls(
         (r'^history/?$',
             'views.render_history_view', None, 'reports_history'),

@@ -16,7 +16,7 @@ from django.core.urlresolvers import \
 from django.db import connection, DatabaseError
 from django.db.models import Q
 
-from Bcfg2.Server.Reports.reports.models import *
+from Bcfg2.Reporting.models import *
 
 
 __SORT_FIELDS__ = ( 'client', 'state', 'good', 'bad', 'modified', 'extra', \

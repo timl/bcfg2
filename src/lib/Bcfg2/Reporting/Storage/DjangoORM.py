@@ -24,8 +24,6 @@ from Bcfg2.Reporting.models import *
 class DjangoORM(StorageBase):
     def __init__(self, setup):
         super(DjangoORM, self).__init__(setup)
-        self._load_stat = None
-        self._ClientMetadata = None
         self.size_limit = setup.get('reporting_size_limit')
 
     @transaction.commit_on_success
@@ -256,12 +254,6 @@ class DjangoORM(StorageBase):
             self.logger.error("Failed to update database schema: %s" % \
                 traceback.format_exc().splitlines()[-1])
             raise StorageError
-
-        #Ensure our setup happens before these are imported
-        from Bcfg2.Server.Reports.importscript import load_stat
-        from Bcfg2.Server.Plugins.Metadata import ClientMetadata
-        self._load_stat = load_stat
-        self._ClientMetadata = ClientMetadata
 
     def GetExtra(self, client):
         """Fetch extra entries for a client"""

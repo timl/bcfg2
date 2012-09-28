@@ -10,8 +10,8 @@ from django.template.loader import get_template, \
 from django.utils.encoding import smart_unicode, smart_str
 from django.utils.safestring import mark_safe
 from datetime import datetime, timedelta
-from Bcfg2.Server.Reports.utils import filter_list
-from Bcfg2.Server.Reports.reports.models import Group
+from Bcfg2.Reporting.utils import filter_list
+from Bcfg2.Reporting.models import Group
 
 register = template.Library()
 
@@ -208,7 +208,7 @@ class AddUrlFilter(template.Node):
     def __init__(self, filter_name, filter_value):
         self.filter_name = filter_name
         self.filter_value = filter_value
-        self.fallback_view = 'Bcfg2.Server.Reports.reports.views.render_history_view'
+        self.fallback_view = 'Bcfg2.Reporting.views.render_history_view'
 
     def render(self, context):
         link = '#'
@@ -244,7 +244,7 @@ def add_url_filter(parser, token):
     Return a url with the filter added to the current view.
 
     Takes a new filter and resolves the current view with the new filter
-    applied.  Resolves to Bcfg2.Server.Reports.reports.views.client_history
+    applied.  Resolves to Bcfg2.Reporting.views.client_history
     by default.
 
     {% add_url_filter server=interaction.server %}
