@@ -130,7 +130,6 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.sites',
     'django.contrib.admin',
-    #'Bcfg2.Server.Reports.reports',
     'Bcfg2.Server',
 )
 if has_south:
@@ -170,7 +169,7 @@ MIDDLEWARE_CLASSES = (
 )
 
 # TODO - move this to a higher root and dynamically import
-ROOT_URLCONF = 'Bcfg2.Server.Reports.urls'
+ROOT_URLCONF = 'Bcfg2.Reporting.urls'
 
 # TODO - this isn't usable
 # Authentication Settings
