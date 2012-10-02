@@ -300,7 +300,7 @@ def client_index(request, timestamp=None, **kwargs):
       timestamp -- datetime object to render from
 
     """
-    list = _handle_filters(Interaction.objects.interaction_per_client(timestamp), **kwargs).\
+    list = _handle_filters(Interaction.objects.recent(timestamp), **kwargs).\
            select_related().order_by("client__name").all()
 
     return render_to_response('clients/index.html',
@@ -339,7 +339,7 @@ def client_detailed_list(request, timestamp=None, **kwargs):
         kwargs['orderby'] = "client__name"
         kwargs['sort'] = "client"
 
-    kwargs['interaction_base'] = Interaction.objects.interaction_per_client(timestamp).select_related()
+    kwargs['interaction_base'] = Interaction.objects.recent(timestamp).select_related()
     kwargs['page_limit'] = 0
     return render_history_view(request, 'clients/detailed-list.html', **kwargs)
 
@@ -354,15 +354,29 @@ def client_detail(request, hostname=None, pk=None):
         inter = client.interactions.get(pk=pk)
         maxdate = inter.timestamp
 
-    ei = Entries_interactions.objects.filter(interaction=inter).select_related('entry').order_by('entry__kind', 'entry__name')
+    #ei = Entries_interactions.objects.filter(interaction=inter).select_related('entry').order_by('entry__kind', 'entry__name')
     #ei = Entries_interactions.objects.filter(interaction=inter).select_related('entry')
     #ei = sorted(Entries_interactions.objects.filter(interaction=inter).select_related('entry'),
     #    key=lambda x: (x.entry.kind, x.entry.name))
-    context['ei_lists'] = (
-        ('bad', [x for x in ei if x.type == TYPE_BAD]),
-        ('modified', [x for x in ei if x.type == TYPE_MODIFIED]),
-        ('extra', [x for x in ei if x.type == TYPE_EXTRA])
-    )
+    #context['entry_types'] = ('actions', 'packages', 'paths', 'services', 'failures')
+
+    context['entry_types'] = dict()
+    for etype in ('actions', 'packages', 'paths', 'services'):
+        context['entry_types'][etype] = getattr(inter, etype).all()
+
+    #for ekind in ('actions', 'packages', 'paths', 'services'):
+    #    for ent in getattr(inter, ekind).all():
+    #        edict[etypes[ent.state]].append((ekind, ent))
+    #context['ei_lists'] = (
+    #    ('bad', []),
+    #    ('modified', []),
+    #    ('extra', []),
+    #)
+    #context['ei_lists'] = (
+    #    ('bad', [x for x in ei if x.type == TYPE_BAD]),
+    #    ('modified', [x for x in ei if x.type == TYPE_MODIFIED]),
+    #    ('extra', [x for x in ei if x.type == TYPE_EXTRA])
+    #)
 
     context['interaction']=inter
     return render_history_view(request, 'clients/detail.html', page_limit=5,
@@ -418,13 +432,13 @@ def display_summary(request, timestamp=None):
         if timestamp - node.timestamp > timedelta(hours=24):
             collected_data['stale'].append(node)
             # If stale check for uptime
-        if node.bad_entry_count() > 0:
+        if node.bad_count() > 0:
             collected_data['bad'].append(node)
         else:
             collected_data['clean'].append(node)
-        if node.modified_entry_count() > 0:
+        if node.modified_count() > 0:
             collected_data['modified'].append(node)
-        if node.extra_entry_count() > 0:
+        if node.extra_count() > 0:
             collected_data['extra'].append(node)
 
     # label, header_text, node_list

@@ -21,10 +21,10 @@
     {% endif %}
     <td class='right_column' style='width:75px'><a href='{% add_url_filter state=entry.state %}'
         class='{{entry|determine_client_state}}'>{{ entry.state }}</a></td>
-    <td class='right_column_narrow'>{{ entry.goodcount }}</td>
-    <td class='right_column_narrow'>{{ entry.bad_entry_count }}</td>
-    <td class='right_column_narrow'>{{ entry.modified_entry_count }}</td>
-    <td class='right_column_narrow'>{{ entry.extra_entry_count }}</td>
+    <td class='right_column_narrow'>{{ entry.good_count }}</td>
+    <td class='right_column_narrow'>{{ entry.bad_count }}</td>
+    <td class='right_column_narrow'>{{ entry.modified_count }}</td>
+    <td class='right_column_narrow'>{{ entry.extra_count }}</td>
     <td class='right_column_wide'>
        {% if entry.server %}
          <a href='{% add_url_filter server=entry.server %}'>{{ entry.server }}</a>

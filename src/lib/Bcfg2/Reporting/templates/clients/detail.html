@@ -35,7 +35,7 @@ span.history_links a {
     <select id="quick" name="quick" onchange="javascript:pageJump('quick');">
     <option value="" selected="selected">--- Time ---</option>
     {% for i in client.interactions.all|slice:":25" %}
-        <option value="{% url reports_client_detail_pk hostname=client.name, pk=i.id %}">{{i.timestamp}}</option>
+        <option value="{% url reports_client_detail_pk hostname=client.name, pk=i.id %}">{{i.timestamp|date:"c"}}</option>
     {% endfor %}
   </select></span>
   </div>
@@ -57,7 +57,7 @@ span.history_links a {
     <tr><td>Revision</td><td>{{interaction.repo_rev_code}}</td></tr>
     {% endif %}
     <tr><td>State</td><td class='{{interaction.state}}-lineitem'>{{interaction.state|capfirst}}</td></tr>
-    <tr><td>Managed entries</td><td>{{interaction.totalcount}}</td></tr>
+    <tr><td>Managed entries</td><td>{{interaction.total_count}}</td></tr>
     {% if not interaction.isclean %}
     <tr><td>Deviation</td><td>{{interaction.percentbad|floatformat:"3"}}%</td></tr>
     {% endif %}
@@ -95,25 +95,45 @@ span.history_links a {
   </div>
   {% endif %}
 
-  {% for type, ei_list in ei_lists %}
-  {% if ei_list %}
+  {% for entry_type, entry_list in entry_types.items %}
+  {% if entry_list %}
   <div class='entry_list'>
-    <div class='entry_list_head {{type}}-lineitem' onclick='javascript:toggleMe("{{type}}_table");'>
-      <h3>{{ type|capfirst }} Entries &#8212; {{ ei_list|length }}</h3>
-      <div class='entry_expand_tab' id='plusminus_{{type}}_table'>[+]</div>
+    <div class='entry_list_head' onclick='javascript:toggleMe("{{entry_type}}_table");'>
+      <h3>{{ entry_type|capfirst }} Entries &#8212; {{ entry_list|length }}</h3>
+      <div class='entry_expand_tab' id='plusminus_{{entry_type}}_table'>[+]</div>
     </div>
-    <table id='{{type}}_table' class='entry_list'>
-      {% for ei in ei_list %}
+    <table id='{{entry_type}}_table' class='entry_list'>
+      {% for entry in entry_list %}
         <tr class='{% cycle listview,listview_alt %}'>
-          <td class='entry_list_type'>{{ei.entry.kind}}</td>
+          <td class='entry_list_type'>{{entry.name}}</td>
+          <td class='entry_list_type'>{{entry.get_state_display}}</td>
+{% comment %}
           <td><a href="{% url reports_item type ei.id %}">
               {{ei.entry.name}}</a></td>
+{% endcomment %}
         </tr>
       {% endfor %}
     </table>
   </div>
   {% endif %}
   {% endfor %}
+
+  {% if interaction.failures.all %}
+  <div class='entry_list'>
+    <div class='entry_list_head' onclick='javascript:toggleMe("failures_table");'>
+      <h3>Failed entries</h3>
+      <div class='entry_expand_tab' id='plusminus_failuress_table'>[+]</div>
+    </div>
+    <table id='failures_table' class='entry_list' style='display: none'>
+      {% for failure in interaction.failures.all %}
+        <tr class='{% cycle listview,listview_alt %}'>
+          <td class='entry_list_type'>{{failure.name}}</td>
+          <td>{{failure.message}}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
 
   {% if entry_list %}
   <div class="entry_list recent_history_wrapper">

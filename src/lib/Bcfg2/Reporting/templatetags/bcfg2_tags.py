@@ -310,7 +310,7 @@ def determine_client_state(entry):
     if entry.state == 'clean':
         return "clean-lineitem"
 
-    bad_percentage = 100 * (float(entry.badcount()) / entry.totalcount)
+    bad_percentage = 100 * (float(entry.bad_count) / entry.total_count)
     if bad_percentage < 33:
         thisdirty = "slightly-dirty-lineitem"
     elif bad_percentage < 66:

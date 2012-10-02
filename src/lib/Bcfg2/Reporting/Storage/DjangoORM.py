@@ -5,6 +5,8 @@ The base for the original DjangoORM (DBStats)
 import os
 import traceback
 from lxml import etree
+from datetime import datetime
+from time import strptime
 
 os.environ['DJANGO_SETTINGS_MODULE'] = 'Bcfg2.settings'
 from Bcfg2 import settings
@@ -52,8 +54,8 @@ class DjangoORM(StorageBase):
                              state=stats.get('state', default="unknown"),
                              repo_rev_code=stats.get('revision',
                                                           default="unknown"),
-                             goodcount=stats.get('good', default="0"),
-                             totalcount=stats.get('total', default="0"),
+                             good_count=stats.get('good', default="0"),
+                             total_count=stats.get('total', default="0"),
                              server=server)
         inter.save()
         self.logger.debug("Interaction for %s at %s with INSERTED in to db" % 
@@ -214,9 +216,9 @@ class DjangoORM(StorageBase):
                 else:
                     self.logger.error("Unknown type %s not handled by reporting yet" % entry_type)
 
-        inter.bad_entries = counter_fields[TYPE_BAD]
-        inter.modified_entries = counter_fields[TYPE_MODIFIED]
-        inter.extra_entries = counter_fields[TYPE_EXTRA]
+        inter.bad_count = counter_fields[TYPE_BAD]
+        inter.modified_count = counter_fields[TYPE_MODIFIED]
+        inter.extra_count = counter_fields[TYPE_EXTRA]
         inter.save()
         for entry_type in updates.keys():
             getattr(inter, entry_type).add(*updates[entry_type])
@@ -240,20 +242,21 @@ class DjangoORM(StorageBase):
         settings.read_config(repo=self.setup['repo'])
 
         # verify our database schema
-        try:
-            from Bcfg2.Server.SchemaUpdater import update_database, UpdaterError
-            try:
-                update_database()
-            except UpdaterError:
-                self.logger.error("Failed to update database schema: %s" % \
-                    traceback.format_exc().splitlines()[-1])
-                raise StorageError
-        except StorageError:
-            raise
-        except Exception:
-            self.logger.error("Failed to update database schema: %s" % \
-                traceback.format_exc().splitlines()[-1])
-            raise StorageError
+        # TODO
+        #try:
+        #    from Bcfg2.Server.SchemaUpdater import update_database, UpdaterError
+        #    try:
+        #        update_database()
+        #    except UpdaterError:
+        #        self.logger.error("Failed to update database schema: %s" % \
+        #            traceback.format_exc().splitlines()[-1])
+        #        raise StorageError
+        #except StorageError:
+        #    raise
+        #except Exception:
+        #    self.logger.error("Failed to update database schema: %s" % \
+        #        traceback.format_exc().splitlines()[-1])
+        #    raise StorageError
 
     def GetExtra(self, client):
         """Fetch extra entries for a client"""

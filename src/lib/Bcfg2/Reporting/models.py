@@ -56,7 +56,7 @@ def hash_entry(entry_dict):
     dataset = []
     for key in sorted(entry_dict.keys()):
         if key in ('id', 'hash_key') or key.startswith('_'):
-           continue
+            continue
         dataset.append( (key, entry_dict[key]) )
     return hash(pickle.dumps(dataset))
 
@@ -72,6 +72,52 @@ class Client(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class InteractionManager(models.Manager):
+    """Manages interactions objects."""
+
+    def recent_ids(self, maxdate=None):
+        """
+        Returns the ids of most recent interactions for clients as of a date.
+
+        Arguments:
+        maxdate -- datetime object.  Most recent date to pull. (dafault None)
+
+        """
+        from django.db import connection
+        cursor = connection.cursor()
+        cfilter = "expiration is null"
+
+        sql = 'select ri.id, x.client_id from (select client_id, MAX(timestamp) ' + \
+                    'as timer from Reporting_interaction'
+        if maxdate:
+            if not isinstance(maxdate, datetime):
+                raise ValueError('Expected a datetime object')
+            sql = sql + " where timestamp <= '%s' " % maxdate
+            cfilter = "(expiration is null or expiration > '%s') and creation <= '%s'" % (maxdate, maxdate)
+        sql = sql + ' GROUP BY client_id) x, Reporting_interaction ri where ' + \
+                    'ri.client_id = x.client_id AND ri.timestamp = x.timer'
+        sql = sql + " and x.client_id in (select id from Reporting_client where %s)" % cfilter
+        try:
+            cursor.execute(sql)
+            return [item[0] for item in cursor.fetchall()]
+        except:
+            '''FIXME - really need some error handling'''
+            pass
+        return []
+
+
+    def recent(self, maxdate=None):
+        """
+        Returns the most recent interactions for clients as of a date
+        Arguments:
+        maxdate -- datetime object.  Most recent date to pull. (dafault None)
+
+        """
+        if maxdate and not isinstance(maxdate, datetime):
+            raise ValueError('Expected a datetime object')
+        return self.filter(id__in=self.recent_ids(maxdate))
 
 
 class Interaction(models.Model):
@@ -93,23 +139,25 @@ class Interaction(models.Model):
     services = models.ManyToManyField("ServiceEntry")
     failures = models.ManyToManyField("FailureEntry")
 
+    objects = InteractionManager()
+
     def __str__(self):
         return "With " + self.client.name + " @ " + self.timestamp.isoformat()
 
     def percentgood(self):
-        if not self.totalcount == 0:
-            return (self.goodcount / float(self.totalcount)) * 100
+        if not self.total_count == 0:
+            return (self.good_count / float(self.total_count)) * 100
         else:
             return 0
 
     def percentbad(self):
-        if not self.totalcount == 0:
-            return ((self.totalcount - self.goodcount) / (float(self.totalcount))) * 100
+        if not self.total_count == 0:
+            return ((self.total_count - self.good_count) / (float(self.total_count))) * 100
         else:
             return 0
 
     def isclean(self):
-        if (self.bad_entries == 0 and self.goodcount == self.totalcount):
+        if (self.bad_count == 0 and self.good_count == self.total_count):
             return True
         else:
             return False
@@ -144,7 +192,7 @@ class Interaction(models.Model):
                 perf.delete()
 
     def badcount(self):
-        return self.totalcount - self.goodcount
+        return self.total_count - self.good_count
 
     def bad(self):
         return []
@@ -275,12 +323,12 @@ class BaseEntry(models.Model):
         acts = cls.objects.filter(hash_key=act_hash)
         if len(acts) > 0:
             for act in acts:
-               for key in act_dict:
-                   if act_dict[key] != getattr(act, key):
-                       continue
-                   #match found
-                   newact = act
-                   break
+                for key in act_dict:
+                    if act_dict[key] != getattr(act, key):
+                        continue
+                    #match found
+                    newact = act
+                    break
     
         # worst case, its new
         if not newact:
@@ -298,6 +346,7 @@ class SuccessEntry(BaseEntry):
 
     class Meta:
         abstract = True
+        ordering = ('state', 'name')
 
 
 class FailureEntry(BaseEntry):
@@ -396,14 +445,4 @@ class ServiceEntry(SuccessEntry):
 
     #TODO - prune
 
-
-class Performance(models.Model):
-    """Object representing performance data for any interaction."""
-    interaction = models.ForeignKey(Interaction, related_name='performance_items')
-
-    metric = models.CharField(max_length=128)
-    value = models.DecimalField(max_digits=32, decimal_places=16)
-
-    def __str__(self):
-        return self.metric
 
