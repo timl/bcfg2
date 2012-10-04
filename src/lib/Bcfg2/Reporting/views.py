@@ -354,29 +354,14 @@ def client_detail(request, hostname=None, pk=None):
         inter = client.interactions.get(pk=pk)
         maxdate = inter.timestamp
 
-    #ei = Entries_interactions.objects.filter(interaction=inter).select_related('entry').order_by('entry__kind', 'entry__name')
-    #ei = Entries_interactions.objects.filter(interaction=inter).select_related('entry')
-    #ei = sorted(Entries_interactions.objects.filter(interaction=inter).select_related('entry'),
-    #    key=lambda x: (x.entry.kind, x.entry.name))
-    #context['entry_types'] = ('actions', 'packages', 'paths', 'services', 'failures')
-
-    context['entry_types'] = dict()
-    for etype in ('actions', 'packages', 'paths', 'services'):
-        context['entry_types'][etype] = getattr(inter, etype).all()
-
-    #for ekind in ('actions', 'packages', 'paths', 'services'):
-    #    for ent in getattr(inter, ekind).all():
-    #        edict[etypes[ent.state]].append((ekind, ent))
-    #context['ei_lists'] = (
-    #    ('bad', []),
-    #    ('modified', []),
-    #    ('extra', []),
-    #)
-    #context['ei_lists'] = (
-    #    ('bad', [x for x in ei if x.type == TYPE_BAD]),
-    #    ('modified', [x for x in ei if x.type == TYPE_MODIFIED]),
-    #    ('extra', [x for x in ei if x.type == TYPE_EXTRA])
-    #)
+    etypes = { TYPE_BAD: 'bad', TYPE_MODIFIED: 'modified', TYPE_EXTRA: 'extra' }
+    edict = dict()
+    for label in etypes.values():
+        edict[label] = []
+    for ekind in ('actions', 'packages', 'paths', 'services'):
+        for ent in getattr(inter, ekind).all():
+            edict[etypes[ent.state]].append(ent)
+    context['entry_types'] = edict
 
     context['interaction']=inter
     return render_history_view(request, 'clients/detail.html', page_limit=5,

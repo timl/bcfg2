@@ -139,6 +139,11 @@ class Interaction(models.Model):
     services = models.ManyToManyField("ServiceEntry")
     failures = models.ManyToManyField("FailureEntry")
 
+    # Formerly InteractionMetadata
+    profile = models.ForeignKey("Group", related_name="+")
+    groups = models.ManyToManyField("Group")
+    bundles = models.ManyToManyField("Bundle")
+
     objects = InteractionManager()
 
     def __str__(self):
@@ -244,6 +249,9 @@ class Group(models.Model):
     def __unicode__(self):
         return self.name
 
+    class Meta:
+        ordering = ('name',)
+
 
 class Bundle(models.Model):
     """
@@ -257,18 +265,8 @@ class Bundle(models.Model):
     def __unicode__(self):
         return self.name
 
-
-class InteractionMetadata(models.Model):
-    """
-    InteractionMetadata
-
-    Hold extra data associated with the client and interaction
-    """
-
-    interaction = models.OneToOneField(Interaction, primary_key=True, related_name='metadata')
-    profile = models.ForeignKey(Group, related_name="+")
-    groups = models.ManyToManyField(Group)
-    bundles = models.ManyToManyField(Bundle)
+    class Meta:
+        ordering = ('name',)
 
 
 # new interaction models
@@ -344,6 +342,12 @@ class SuccessEntry(BaseEntry):
     state = models.IntegerField(choices=TYPE_CHOICES)
     exists = models.BooleanField(default=True)
 
+    ENTRY_TYPE = r"Success"
+
+    @property
+    def entry_type(self):
+        return self.ENTRY_TYPE
+
     class Meta:
         abstract = True
         ordering = ('state', 'name')
@@ -351,7 +355,7 @@ class SuccessEntry(BaseEntry):
 
 class FailureEntry(BaseEntry):
     """Represents objects that failed to bind"""
-    entry_type = models.CharField(max_length=128, db_index=True)
+    entry_type = models.CharField(max_length=128)
     message = models.TextField()
 
 
@@ -360,6 +364,7 @@ class ActionEntry(SuccessEntry):
     status = models.CharField(max_length=128, default="check")
     output = models.IntegerField(default=0)
 
+    ENTRY_TYPE = r"Action"
     #TODO - prune
 
 
@@ -371,6 +376,7 @@ class PackageEntry(SuccessEntry):
     current_version = models.CharField(max_length=1024)
     verification_details = models.TextField(default="")
 
+    ENTRY_TYPE = r"Package"
     #TODO - prune
 
 
@@ -415,6 +421,8 @@ class PathEntry(SuccessEntry):
         choices=DETAIL_CHOICES)
     details = models.TextField(default='')
 
+    ENTRY_TYPE = r"Path"
+
 
 class LinkEntry(PathEntry):
     """Sym/Hard Link types"""
@@ -443,6 +451,7 @@ class ServiceEntry(SuccessEntry):
     target_status = models.CharField(max_length=128, default='')
     current_status = models.CharField(max_length=128, default='')
 
+    ENTRY_TYPE = r"Service"
     #TODO - prune
 
 

@@ -31,6 +31,7 @@ class Migration(SchemaMigration):
             ('bad_count', self.gf('django.db.models.fields.IntegerField')(default=0)),
             ('modified_count', self.gf('django.db.models.fields.IntegerField')(default=0)),
             ('extra_count', self.gf('django.db.models.fields.IntegerField')(default=0)),
+            ('profile', self.gf('django.db.models.fields.related.ForeignKey')(related_name='+', to=orm['Reporting.Group'])),
         ))
         db.send_create_signal('Reporting', ['Interaction'])
 
@@ -76,6 +77,22 @@ class Migration(SchemaMigration):
             ('failureentry', models.ForeignKey(orm['Reporting.failureentry'], null=False))
         ))
         db.create_unique('Reporting_interaction_failures', ['interaction_id', 'failureentry_id'])
+
+        # Adding M2M table for field groups on 'Interaction'
+        db.create_table('Reporting_interaction_groups', (
+            ('id', models.AutoField(verbose_name='ID', primary_key=True, auto_created=True)),
+            ('interaction', models.ForeignKey(orm['Reporting.interaction'], null=False)),
+            ('group', models.ForeignKey(orm['Reporting.group'], null=False))
+        ))
+        db.create_unique('Reporting_interaction_groups', ['interaction_id', 'group_id'])
+
+        # Adding M2M table for field bundles on 'Interaction'
+        db.create_table('Reporting_interaction_bundles', (
+            ('id', models.AutoField(verbose_name='ID', primary_key=True, auto_created=True)),
+            ('interaction', models.ForeignKey(orm['Reporting.interaction'], null=False)),
+            ('bundle', models.ForeignKey(orm['Reporting.bundle'], null=False))
+        ))
+        db.create_unique('Reporting_interaction_bundles', ['interaction_id', 'bundle_id'])
 
         # Adding model 'Performance'
         db.create_table('Reporting_performance', (
@@ -127,29 +144,6 @@ class Migration(SchemaMigration):
         ))
         db.send_create_signal('Reporting', ['Bundle'])
 
-        # Adding model 'InteractionMetadata'
-        db.create_table('Reporting_interactionmetadata', (
-            ('interaction', self.gf('django.db.models.fields.related.OneToOneField')(related_name='metadata', unique=True, primary_key=True, to=orm['Reporting.Interaction'])),
-            ('profile', self.gf('django.db.models.fields.related.ForeignKey')(related_name='+', to=orm['Reporting.Group'])),
-        ))
-        db.send_create_signal('Reporting', ['InteractionMetadata'])
-
-        # Adding M2M table for field groups on 'InteractionMetadata'
-        db.create_table('Reporting_interactionmetadata_groups', (
-            ('id', models.AutoField(verbose_name='ID', primary_key=True, auto_created=True)),
-            ('interactionmetadata', models.ForeignKey(orm['Reporting.interactionmetadata'], null=False)),
-            ('group', models.ForeignKey(orm['Reporting.group'], null=False))
-        ))
-        db.create_unique('Reporting_interactionmetadata_groups', ['interactionmetadata_id', 'group_id'])
-
-        # Adding M2M table for field bundles on 'InteractionMetadata'
-        db.create_table('Reporting_interactionmetadata_bundles', (
-            ('id', models.AutoField(verbose_name='ID', primary_key=True, auto_created=True)),
-            ('interactionmetadata', models.ForeignKey(orm['Reporting.interactionmetadata'], null=False)),
-            ('bundle', models.ForeignKey(orm['Reporting.bundle'], null=False))
-        ))
-        db.create_unique('Reporting_interactionmetadata_bundles', ['interactionmetadata_id', 'bundle_id'])
-
         # Adding model 'FilePerms'
         db.create_table('Reporting_fileperms', (
             ('id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
@@ -174,7 +168,7 @@ class Migration(SchemaMigration):
             ('id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
             ('name', self.gf('django.db.models.fields.CharField')(max_length=128, db_index=True)),
             ('hash_key', self.gf('django.db.models.fields.IntegerField')(db_index=True)),
-            ('entry_type', self.gf('django.db.models.fields.CharField')(max_length=128, db_index=True)),
+            ('entry_type', self.gf('django.db.models.fields.CharField')(max_length=128)),
             ('message', self.gf('django.db.models.fields.TextField')()),
         ))
         db.send_create_signal('Reporting', ['FailureEntry'])
@@ -287,6 +281,12 @@ class Migration(SchemaMigration):
         # Removing M2M table for field failures on 'Interaction'
         db.delete_table('Reporting_interaction_failures')
 
+        # Removing M2M table for field groups on 'Interaction'
+        db.delete_table('Reporting_interaction_groups')
+
+        # Removing M2M table for field bundles on 'Interaction'
+        db.delete_table('Reporting_interaction_bundles')
+
         # Deleting model 'Performance'
         db.delete_table('Reporting_performance')
 
@@ -304,15 +304,6 @@ class Migration(SchemaMigration):
 
         # Deleting model 'Bundle'
         db.delete_table('Reporting_bundle')
-
-        # Deleting model 'InteractionMetadata'
-        db.delete_table('Reporting_interactionmetadata')
-
-        # Removing M2M table for field groups on 'InteractionMetadata'
-        db.delete_table('Reporting_interactionmetadata_groups')
-
-        # Removing M2M table for field bundles on 'InteractionMetadata'
-        db.delete_table('Reporting_interactionmetadata_bundles')
 
         # Deleting model 'FilePerms'
         db.delete_table('Reporting_fileperms')
@@ -347,7 +338,7 @@ class Migration(SchemaMigration):
 
     models = {
         'Reporting.actionentry': {
-            'Meta': {'object_name': 'ActionEntry'},
+            'Meta': {'ordering': "('state', 'name')", 'object_name': 'ActionEntry'},
             'exists': ('django.db.models.fields.BooleanField', [], {'default': 'True'}),
             'hash_key': ('django.db.models.fields.IntegerField', [], {'db_index': 'True'}),
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
@@ -370,7 +361,7 @@ class Migration(SchemaMigration):
             'name': ('django.db.models.fields.CharField', [], {'max_length': '128'})
         },
         'Reporting.deviceentry': {
-            'Meta': {'object_name': 'DeviceEntry', '_ormbases': ['Reporting.PathEntry']},
+            'Meta': {'ordering': "('state', 'name')", 'object_name': 'DeviceEntry', '_ormbases': ['Reporting.PathEntry']},
             'current_major': ('django.db.models.fields.IntegerField', [], {}),
             'current_minor': ('django.db.models.fields.IntegerField', [], {}),
             'device_type': ('django.db.models.fields.CharField', [], {'max_length': '16'}),
@@ -380,7 +371,7 @@ class Migration(SchemaMigration):
         },
         'Reporting.failureentry': {
             'Meta': {'object_name': 'FailureEntry'},
-            'entry_type': ('django.db.models.fields.CharField', [], {'max_length': '128', 'db_index': 'True'}),
+            'entry_type': ('django.db.models.fields.CharField', [], {'max_length': '128'}),
             'hash_key': ('django.db.models.fields.IntegerField', [], {'db_index': 'True'}),
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'message': ('django.db.models.fields.TextField', [], {}),
@@ -413,14 +404,17 @@ class Migration(SchemaMigration):
             'Meta': {'ordering': "['-timestamp']", 'unique_together': "(('client', 'timestamp'),)", 'object_name': 'Interaction'},
             'actions': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.ActionEntry']", 'symmetrical': 'False'}),
             'bad_count': ('django.db.models.fields.IntegerField', [], {'default': '0'}),
+            'bundles': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.Bundle']", 'symmetrical': 'False'}),
             'client': ('django.db.models.fields.related.ForeignKey', [], {'related_name': "'interactions'", 'to': "orm['Reporting.Client']"}),
             'extra_count': ('django.db.models.fields.IntegerField', [], {'default': '0'}),
             'failures': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.FailureEntry']", 'symmetrical': 'False'}),
             'good_count': ('django.db.models.fields.IntegerField', [], {}),
+            'groups': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.Group']", 'symmetrical': 'False'}),
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'modified_count': ('django.db.models.fields.IntegerField', [], {'default': '0'}),
             'packages': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.PackageEntry']", 'symmetrical': 'False'}),
             'paths': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.PathEntry']", 'symmetrical': 'False'}),
+            'profile': ('django.db.models.fields.related.ForeignKey', [], {'related_name': "'+'", 'to': "orm['Reporting.Group']"}),
             'repo_rev_code': ('django.db.models.fields.CharField', [], {'max_length': '64'}),
             'server': ('django.db.models.fields.CharField', [], {'max_length': '256'}),
             'services': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.ServiceEntry']", 'symmetrical': 'False'}),
@@ -428,21 +422,14 @@ class Migration(SchemaMigration):
             'timestamp': ('django.db.models.fields.DateTimeField', [], {'db_index': 'True'}),
             'total_count': ('django.db.models.fields.IntegerField', [], {})
         },
-        'Reporting.interactionmetadata': {
-            'Meta': {'object_name': 'InteractionMetadata'},
-            'bundles': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.Bundle']", 'symmetrical': 'False'}),
-            'groups': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.Group']", 'symmetrical': 'False'}),
-            'interaction': ('django.db.models.fields.related.OneToOneField', [], {'related_name': "'metadata'", 'unique': 'True', 'primary_key': 'True', 'to': "orm['Reporting.Interaction']"}),
-            'profile': ('django.db.models.fields.related.ForeignKey', [], {'related_name': "'+'", 'to': "orm['Reporting.Group']"})
-        },
         'Reporting.linkentry': {
-            'Meta': {'object_name': 'LinkEntry', '_ormbases': ['Reporting.PathEntry']},
+            'Meta': {'ordering': "('state', 'name')", 'object_name': 'LinkEntry', '_ormbases': ['Reporting.PathEntry']},
             'current_path': ('django.db.models.fields.CharField', [], {'max_length': '1024', 'blank': 'True'}),
             'pathentry_ptr': ('django.db.models.fields.related.OneToOneField', [], {'to': "orm['Reporting.PathEntry']", 'unique': 'True', 'primary_key': 'True'}),
             'target_path': ('django.db.models.fields.CharField', [], {'max_length': '1024', 'blank': 'True'})
         },
         'Reporting.packageentry': {
-            'Meta': {'object_name': 'PackageEntry'},
+            'Meta': {'ordering': "('state', 'name')", 'object_name': 'PackageEntry'},
             'current_version': ('django.db.models.fields.CharField', [], {'max_length': '1024'}),
             'exists': ('django.db.models.fields.BooleanField', [], {'default': 'True'}),
             'hash_key': ('django.db.models.fields.IntegerField', [], {'db_index': 'True'}),
@@ -453,7 +440,7 @@ class Migration(SchemaMigration):
             'verification_details': ('django.db.models.fields.TextField', [], {'default': "''"})
         },
         'Reporting.pathentry': {
-            'Meta': {'object_name': 'PathEntry'},
+            'Meta': {'ordering': "('state', 'name')", 'object_name': 'PathEntry'},
             'acls': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.FileAcl']", 'symmetrical': 'False'}),
             'current_perms': ('django.db.models.fields.related.ForeignKey', [], {'related_name': "'+'", 'to': "orm['Reporting.FilePerms']"}),
             'detail_type': ('django.db.models.fields.IntegerField', [], {'default': '0'}),
@@ -474,7 +461,7 @@ class Migration(SchemaMigration):
             'value': ('django.db.models.fields.DecimalField', [], {'max_digits': '32', 'decimal_places': '16'})
         },
         'Reporting.serviceentry': {
-            'Meta': {'object_name': 'ServiceEntry'},
+            'Meta': {'ordering': "('state', 'name')", 'object_name': 'ServiceEntry'},
             'current_status': ('django.db.models.fields.CharField', [], {'default': "''", 'max_length': '128'}),
             'exists': ('django.db.models.fields.BooleanField', [], {'default': 'True'}),
             'hash_key': ('django.db.models.fields.IntegerField', [], {'db_index': 'True'}),

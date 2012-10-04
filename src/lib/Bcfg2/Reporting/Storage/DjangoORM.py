@@ -49,6 +49,7 @@ class DjangoORM(StorageBase):
                     (hostname, timestamp))
             return
 
+        profile, created = Group.objects.get_or_create(name=metadata['profile'])
         inter = Interaction(client=client,
                              timestamp=timestamp,
                              state=stats.get('state', default="unknown"),
@@ -56,15 +57,11 @@ class DjangoORM(StorageBase):
                                                           default="unknown"),
                              good_count=stats.get('good', default="0"),
                              total_count=stats.get('total', default="0"),
-                             server=server)
+                             server=server,
+                             profile=profile)
         inter.save()
         self.logger.debug("Interaction for %s at %s with INSERTED in to db" % 
                 (client.id, timestamp))
-
-        imeta = InteractionMetadata(interaction=inter)
-        profile, created = Group.objects.get_or_create(name=metadata['profile'])
-        imeta.profile = profile
-        imeta.save() # save here for m2m
 
         #FIXME - this should be more efficient
         for group_name in metadata['groups']:
@@ -75,7 +72,7 @@ class DjangoORM(StorageBase):
                     self.logger.debug("Added group %s" % group)
                 cache.set("GROUP_" + group_name, group)
                 
-            imeta.groups.add(group)
+            inter.groups.add(group)
         for bundle_name in metadata['bundles']:
             bundle = cache.get("BUNDLE_" + bundle_name)
             if not bundle:
@@ -83,8 +80,8 @@ class DjangoORM(StorageBase):
                 if created:
                     self.logger.debug("Added bundle %s" % bundle)
                 cache.set("BUNDLE_" + bundle_name, bundle)
-            imeta.bundles.add(bundle)
-        imeta.save()
+            inter.bundles.add(bundle)
+        inter.save()
 
         counter_fields = {TYPE_BAD: 0,
                           TYPE_MODIFIED: 0,

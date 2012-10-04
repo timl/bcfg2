@@ -50,9 +50,7 @@ span.history_links a {
     {% if interaction.server %}
     <tr><td>Served by</td><td>{{interaction.server}}</td></tr>
     {% endif %}
-    {% if interaction.metadata %}
-    <tr><td>Profile</td><td>{{interaction.metadata.profile}}</td></tr>
-    {% endif %}
+    <tr><td>Profile</td><td>{{interaction.profile}}</td></tr>
     {% if interaction.repo_rev_code %}
     <tr><td>Revision</td><td>{{interaction.repo_rev_code}}</td></tr>
     {% endif %}
@@ -63,14 +61,14 @@ span.history_links a {
     {% endif %}
   </table>
 
-  {% if interaction.metadata.groups.count %}
+  {% if interaction.groups.count %}
   <div class='entry_list'>
     <div class='entry_list_head' onclick='javascript:toggleMe("groups_table");'>
       <h3>Group membership</h3>
       <div class='entry_expand_tab' id='plusminus_groups_table'>[+]</div>
     </div>
     <table id='groups_table' class='entry_list' style='display: none'>
-      {% for group in interaction.metadata.groups.all %}
+      {% for group in interaction.groups.all %}
         <tr class='{% cycle listview,listview_alt %}'>
           <td class='entry_list_type'>{{group}}</td>
         </tr>
@@ -79,14 +77,14 @@ span.history_links a {
   </div>
   {% endif %}
 
-  {% if interaction.metadata.bundles.count %}
+  {% if interaction.bundles.count %}
   <div class='entry_list'>
     <div class='entry_list_head' onclick='javascript:toggleMe("bundles_table");'>
       <h3>Bundle membership</h3>
       <div class='entry_expand_tab' id='plusminus_bundless_table'>[+]</div>
     </div>
     <table id='bundles_table' class='entry_list' style='display: none'>
-      {% for bundle in interaction.metadata.bundles.all %}
+      {% for bundle in interaction.bundles.all %}
         <tr class='{% cycle listview,listview_alt %}'>
           <td class='entry_list_type'>{{bundle}}</td>
         </tr>
@@ -98,19 +96,16 @@ span.history_links a {
   {% for entry_type, entry_list in entry_types.items %}
   {% if entry_list %}
   <div class='entry_list'>
-    <div class='entry_list_head' onclick='javascript:toggleMe("{{entry_type}}_table");'>
+    <div class='entry_list_head {{entry_type}}-lineitem' onclick='javascript:toggleMe("{{entry_type}}_table");'>
       <h3>{{ entry_type|capfirst }} Entries &#8212; {{ entry_list|length }}</h3>
       <div class='entry_expand_tab' id='plusminus_{{entry_type}}_table'>[+]</div>
     </div>
     <table id='{{entry_type}}_table' class='entry_list'>
       {% for entry in entry_list %}
         <tr class='{% cycle listview,listview_alt %}'>
-          <td class='entry_list_type'>{{entry.name}}</td>
-          <td class='entry_list_type'>{{entry.get_state_display}}</td>
-{% comment %}
-          <td><a href="{% url reports_item type ei.id %}">
-              {{ei.entry.name}}</a></td>
-{% endcomment %}
+          <td class='entry_list_type'>{{entry.entry_type}}</td>
+          <td><a href="{% url reports_item entry_type entry.pk %}">
+              {{entry.name}}</a></td>
         </tr>
       {% endfor %}
     </table>
@@ -127,6 +122,7 @@ span.history_links a {
     <table id='failures_table' class='entry_list' style='display: none'>
       {% for failure in interaction.failures.all %}
         <tr class='{% cycle listview,listview_alt %}'>
+          <td class='entry_list_type'>{{failure.entry_type}}</td>
           <td class='entry_list_type'>{{failure.name}}</td>
           <td>{{failure.message}}</td>
         </tr>
