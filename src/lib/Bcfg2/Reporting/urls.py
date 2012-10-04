@@ -16,7 +16,9 @@ urlpatterns = patterns('Bcfg2.Reporting',
     url(r'^manage/?$', 'views.client_manage', name='reports_client_manage'),
     url(r'^client/(?P<hostname>[^/]+)/(?P<pk>\d+)/?$', 'views.client_detail', name='reports_client_detail_pk'),
     url(r'^client/(?P<hostname>[^/]+)/?$', 'views.client_detail', name='reports_client_detail'),
-    url(r'^elements/(?P<type>\w+)/(?P<pk>\d+)/?$', 'views.config_item', name='reports_item'),
+    url(r'^elements/(?P<entry_type>\w+)/(?P<pk>\d+)/(?P<interaction>\d+)?/?$', 'views.config_item', name='reports_item'),
+    url(r'^elements/(?P<entry_type>\w+)/(?P<pk>\d+)/?$', 'views.config_item', name='reports_item'),
+    #url(r'^elements/(?P<entry_type>\w+)/(?P<pk>\d+)(/(?P<interaction>\d+))?/?$', 'views.config_item', name='reports_item'),
     url(r'^entry/(?P<eid>\w+)/?$', 'views.entry_status', name='reports_entry'),
 )
 

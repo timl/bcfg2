@@ -104,7 +104,7 @@ span.history_links a {
       {% for entry in entry_list %}
         <tr class='{% cycle listview,listview_alt %}'>
           <td class='entry_list_type'>{{entry.entry_type}}</td>
-          <td><a href="{% url reports_item entry_type entry.pk %}">
+          <td><a href="{% url reports_item entry.class_name entry.pk interaction.pk %}">
               {{entry.name}}</a></td>
         </tr>
       {% endfor %}
@@ -123,8 +123,11 @@ span.history_links a {
       {% for failure in interaction.failures.all %}
         <tr class='{% cycle listview,listview_alt %}'>
           <td class='entry_list_type'>{{failure.entry_type}}</td>
-          <td class='entry_list_type'>{{failure.name}}</td>
+          <td><a href="{% url reports_item failure.class_name failure.pk interaction.pk %}">
+              {{failure.name}}</a></td>
+{% comment %}
           <td>{{failure.message}}</td>
+{% endcomment %}
         </tr>
       {% endfor %}
     </table>

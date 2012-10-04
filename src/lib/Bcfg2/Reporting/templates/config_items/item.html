@@ -31,63 +31,59 @@ div.entry_list h3 {
 
 {% block content %}
     <div class='detail_header'>
-      <h3>{{mod_or_bad|capfirst}} {{item.entry.kind}}: {{item.entry.name}}</h3>
+      <h3>{{item.get_state_display}} {{item.entry_type}}: {{item.name}}</h3>
     </div>
 
   <div class="information_wrapper">
-
-  {% if isextra %}
+{% block item_details %}
+  {% if item.is_extra %}
   <p>This item exists on the host but is not defined in the configuration.</p>
   {% endif %}
 
-  {% if not item.reason.current_exists %}
+  {% if not item.exists %}
   <div class="warning">This item does not currently exist on the host but is specified to exist in the configuration.</div>
   {% endif %}
 
-  {% if item.reason.current_owner or item.reason.current_group or item.reason.current_perms or item.reason.current_status or item.reason.current_status or item.reason.current_to or item.reason.current_version %}
   <table class='entry_list'>
       <tr id='table_list_header'>
           <td style='text-align: right;'>Problem Type</td><td>Expected</td><td style='border-bottom: 1px solid #98DBCC;'>Found</td></tr>
-    {% if item.reason.current_owner %}
-      <tr><td style='text-align: right'><b>Owner</b></td><td>{{item.reason.owner}}</td>
-          <td>{{item.reason.current_owner}}</td></tr>
-    {% endif %}
-    {% if item.reason.current_group %}
-      <tr><td style='text-align: right'><b>Group</b></td><td>{{item.reason.group}}</td>
-          <td>{{item.reason.current_group}}</td></tr>
-    {% endif %}
-    {% if item.reason.current_perms %}
-      <tr><td style='text-align: right'><b>Permissions</b></td><td>{{item.reason.perms}}</td>
-          <td>{{item.reason.current_perms}}</td></tr>
-    {% endif %}
-    {% if item.reason.current_status %}
-      <tr><td style='text-align: right'><b>Status</b></td><td>{{item.reason.status}}</td>
-          <td>{{item.reason.current_status}}</td></tr>
-    {% endif %}
-    {% if item.reason.current_to %}
-      <tr><td style='text-align: right'><b>Symlink Target</b></td><td>{{item.reason.to}}</td>
-          <td>{{item.reason.current_to}}</td></tr>
-    {% endif %}
-    {% if item.reason.current_version %}
-      <tr><td style='text-align: right'><b>Package Version</b></td><td>{{item.reason.version|cut:"("|cut:")"}}</td>
-          <td>{{item.reason.current_version|cut:"("|cut:")"}}</td></tr>
-    {% endif %}
-  </table>
+  {% if item.perms_problem %}
+      <tr><td style='text-align: right'><b>Owner</b></td><td>{{item.target_perms.owner}}</td>
+          <td>{{item.current_perms.current_owner}}</td></tr>
+      <tr><td style='text-align: right'><b>Group</b></td><td>{{item.target_perms.group}}</td>
+          <td>{{item.current_perms.current_group}}</td></tr>
+      <tr><td style='text-align: right'><b>Group</b></td><td>{{item.target_perms.perms}}</td>
+          <td>{{item.current_perms.current_perms}}</td></tr>
   {% endif %}
+  {% if item.status_problem %}
+  <tr><td style='text-align: right'><b>Status</b></td><td>{{item.target_status}}</td>
+          <td>{{item.current_status}}</td></tr>
+  {% endif %}
+  {% if item.link_problem %}
+  <tr><td style='text-align: right'><b>Link ({{item.path_type}}) to</b></td><td>{{item.target_path}}</td>
+          <td>{{item.current_path}}</td></tr>
+  {% endif %}
+  {% if item.version_problem %}
+    <tr><td style='text-align: right'><b>Package Version</b></td><td>{{item.target_version|cut:"("|cut:")"}}</td>
+        <td>{{item.current_version|cut:"("|cut:")"}}</td></tr>
+  {% endif %}
+  </table>
 
-  {% if item.reason.current_diff or item.reason.is_sensitive %}
+  {% if item.has_detail %}
     <div class='entry_list'>
       <div class='entry_list_head'>
-        {% if item.reason.is_sensitive %}
+        {% if item.is_sensitive %}
           <h3>File contents unavailable, as they might contain sensitive data.</h3>
         {% else %}
-          <h3>Incorrect file contents</h3>
+          <h3>Incorrect file contents ({{item.get_detail_type_display}})</h3>
         {% endif %}
       </div>
-      {% if not item.reason.is_sensitive %}
+      {% if item.is_diff %}
         <div class='diff_wrapper'>
-          {{ item.reason.current_diff|syntaxhilight }}
+          {{ item.details|syntaxhilight }}
         </div>
+      {% else %}
+          {{ item.details }}
       {% endif %}
     </div>
   {% endif %}
@@ -105,6 +101,7 @@ div.entry_list h3 {
       </table>
     </div>
   {% endif %}
+{% endblock %}
 
 
   <div class='entry_list'>

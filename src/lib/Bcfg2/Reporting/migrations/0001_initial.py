@@ -97,18 +97,11 @@ class Migration(SchemaMigration):
         # Adding model 'Performance'
         db.create_table('Reporting_performance', (
             ('id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
+            ('interaction', self.gf('django.db.models.fields.related.ForeignKey')(related_name='performance_items', to=orm['Reporting.Interaction'])),
             ('metric', self.gf('django.db.models.fields.CharField')(max_length=128)),
             ('value', self.gf('django.db.models.fields.DecimalField')(max_digits=32, decimal_places=16)),
         ))
         db.send_create_signal('Reporting', ['Performance'])
-
-        # Adding M2M table for field interaction on 'Performance'
-        db.create_table('Reporting_performance_interaction', (
-            ('id', models.AutoField(verbose_name='ID', primary_key=True, auto_created=True)),
-            ('performance', models.ForeignKey(orm['Reporting.performance'], null=False)),
-            ('interaction', models.ForeignKey(orm['Reporting.interaction'], null=False))
-        ))
-        db.create_unique('Reporting_performance_interaction', ['performance_id', 'interaction_id'])
 
         # Adding model 'Group'
         db.create_table('Reporting_group', (
@@ -290,9 +283,6 @@ class Migration(SchemaMigration):
         # Deleting model 'Performance'
         db.delete_table('Reporting_performance')
 
-        # Removing M2M table for field interaction on 'Performance'
-        db.delete_table('Reporting_performance_interaction')
-
         # Deleting model 'Group'
         db.delete_table('Reporting_group')
 
@@ -348,7 +338,7 @@ class Migration(SchemaMigration):
             'status': ('django.db.models.fields.CharField', [], {'default': "'check'", 'max_length': '128'})
         },
         'Reporting.bundle': {
-            'Meta': {'object_name': 'Bundle'},
+            'Meta': {'ordering': "('name',)", 'object_name': 'Bundle'},
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'name': ('django.db.models.fields.CharField', [], {'unique': 'True', 'max_length': '255'})
         },
@@ -390,7 +380,7 @@ class Migration(SchemaMigration):
             'perms': ('django.db.models.fields.CharField', [], {'max_length': '128'})
         },
         'Reporting.group': {
-            'Meta': {'object_name': 'Group'},
+            'Meta': {'ordering': "('name',)", 'object_name': 'Group'},
             'bundles': ('django.db.models.fields.related.ManyToManyField', [], {'to': "orm['Reporting.Bundle']", 'symmetrical': 'False'}),
             'category': ('django.db.models.fields.CharField', [], {'max_length': '1024', 'blank': 'True'}),
             'comment': ('django.db.models.fields.TextField', [], {'blank': 'True'}),
@@ -456,7 +446,7 @@ class Migration(SchemaMigration):
         'Reporting.performance': {
             'Meta': {'object_name': 'Performance'},
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
-            'interaction': ('django.db.models.fields.related.ManyToManyField', [], {'related_name': "'performance_items'", 'symmetrical': 'False', 'to': "orm['Reporting.Interaction']"}),
+            'interaction': ('django.db.models.fields.related.ForeignKey', [], {'related_name': "'performance_items'", 'to': "orm['Reporting.Interaction']"}),
             'metric': ('django.db.models.fields.CharField', [], {'max_length': '128'}),
             'value': ('django.db.models.fields.DecimalField', [], {'max_digits': '32', 'decimal_places': '16'})
         },

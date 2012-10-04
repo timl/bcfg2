@@ -133,37 +133,41 @@ def _handle_filters(query, **kwargs):
     return query
 
 
-def config_item(request, pk, type="bad"):
+def config_item(request, pk, entry_type, interaction=None):
     """
     Display a single entry.
 
     Dispalys information about a single entry.
 
     """
-    item = get_object_or_404(Entries_interactions, id=pk)
-    timestamp = item.interaction.timestamp
-    time_start = item.interaction.timestamp.replace(hour=0,
-                                                    minute=0,
-                                                    second=0,
-                                                    microsecond=0)
-    time_end = time_start + timedelta(days=1)
+    try:
+        cls = BaseEntry.entry_from_name(entry_type)
+    except ValueError:
+        # TODO - handle this
+        raise
+    item = get_object_or_404(cls, pk=pk)
 
-    todays_data = Interaction.objects.filter(timestamp__gte=time_start,
-                                             timestamp__lt=time_end)
-    shared_entries = Entries_interactions.objects.filter(entry=item.entry,
-                                                         reason=item.reason,
-                                                         type=item.type,
-                                                         interaction__in=[x['id']\
-                                                                          for x in todays_data.values('id')])
+    # TODO - timestamp
+    if interaction:
+        try:
+            inter = Interaction.objects.get(pk=interaction)
+        except Interaction.DoesNotExist:
+            raise Http404("Not a valid interaction")
+        timestamp = inter.timestamp
+    else:
+        timestamp = datetime.now()
 
-    associated_list = Interaction.objects.filter(id__in=[x['interaction']\
-        for x in shared_entries.values('interaction')])\
-        .order_by('client__name', 'timestamp').select_related().all()
-
-    return render_to_response('config_items/item.html',
+    ts_start = timestamp.replace(hour=1, minute=0, second=0, microsecond=0)
+    ts_end = ts_start + timedelta(days=1)
+    associated_list = item.interaction_set.select_related('client').filter(\
+        timestamp__gte=ts_start, timestamp__lt=ts_end)
+        
+    if item.is_failure():
+        template = 'config_items/item-failure.html'
+    else:
+        template = 'config_items/item.html'
+    return render_to_response(template,
                               {'item': item,
-                               'isextra': item.type == TYPE_EXTRA,
-                               'mod_or_bad': type,
                                'associated_list': associated_list,
                                'timestamp': timestamp},
                               context_instance=RequestContext(request))

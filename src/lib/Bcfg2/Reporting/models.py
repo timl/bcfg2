@@ -219,7 +219,7 @@ class Interaction(models.Model):
 
 class Performance(models.Model):
     """Object representing performance data for any interaction."""
-    interaction = models.ManyToManyField(Interaction, related_name="performance_items")
+    interaction = models.ForeignKey(Interaction, related_name="performance_items")
     metric = models.CharField(max_length=128)
     value = models.DecimalField(max_digits=32, decimal_places=16)
 
@@ -301,9 +301,23 @@ class BaseEntry(models.Model):
         super(BaseEntry, self).save(*args, **kwargs)
 
 
+    def class_name(self):
+        return self.__class__.__name__
+
     def short_list(self):
         """todo"""
         return []
+
+
+    @classmethod
+    def entry_from_name(cls, name):
+        try:
+            newcls = globals()[name]
+            if not isinstance(newcls(), cls):
+                raise ValueError("%s is not an instance of %s" % (name, cls))
+            return newcls
+        except KeyError:
+            raise ValueError("Invalid type %s" % name)
 
 
     @classmethod
@@ -337,6 +351,10 @@ class BaseEntry(models.Model):
         return newact
 
 
+    def is_failure(self):
+        return isinstance(self, FailureEntry)
+
+
 class SuccessEntry(BaseEntry):
     """Base for successful entries"""
     state = models.IntegerField(choices=TYPE_CHOICES)
@@ -348,6 +366,9 @@ class SuccessEntry(BaseEntry):
     def entry_type(self):
         return self.ENTRY_TYPE
 
+    def is_extra(self):
+        return self.state == TYPE_EXTRA
+
     class Meta:
         abstract = True
         ordering = ('state', 'name')
@@ -357,6 +378,9 @@ class FailureEntry(BaseEntry):
     """Represents objects that failed to bind"""
     entry_type = models.CharField(max_length=128)
     message = models.TextField()
+
+    def is_failure(self):
+        return True
 
 
 class ActionEntry(SuccessEntry):
@@ -378,6 +402,9 @@ class PackageEntry(SuccessEntry):
 
     ENTRY_TYPE = r"Package"
     #TODO - prune
+
+    def version_problem(self):
+        return self.target_version == self.current_version
 
 
 class PathEntry(SuccessEntry):
@@ -423,11 +450,29 @@ class PathEntry(SuccessEntry):
 
     ENTRY_TYPE = r"Path"
 
+    def perms_problem(self):
+        return self.target_perms == self.current_perms
+
+    def has_detail(self):
+        return self.detail_type != PathEntry.DETAIL_UNUSED
+
+    def is_sensitive(self):
+        return self.detail_type == PathEntry.DETAIL_SENSITIVE
+
+    def is_diff(self):
+        return self.detail_type == PathEntry.DETAIL_DIFF
+
+    def is_sensitive(self):
+        return self.detail_type == PathEntry.DETAIL_SENSITIVE
+
 
 class LinkEntry(PathEntry):
     """Sym/Hard Link types"""
     target_path = models.CharField(max_length=1024, blank=True)
     current_path = models.CharField(max_length=1024, blank=True)
+
+    def link_problem(self):
+        return self.target_path != self.current_path
 
 
 class DeviceEntry(PathEntry):
@@ -453,5 +498,8 @@ class ServiceEntry(SuccessEntry):
 
     ENTRY_TYPE = r"Service"
     #TODO - prune
+
+    def status_problem(self):
+        return self.target_status != self.current_status
 
 
