@@ -141,7 +141,10 @@ def _migrate_transaction(inter, entries):
             logger.warn("Skipping type %s" % ent.kind)
 
     for entry_type in updates.keys():
-        getattr(newint, entry_type).add(*updates[entry_type])
+        i = 0
+        while(i < len(updates[entry_type])):
+            getattr(newint, entry_type).add(*updates[entry_type][i:i+100])
+            i += 100
 
     for perf in inter.performance_items.all():
         new_models.Performance(
