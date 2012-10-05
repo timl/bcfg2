@@ -117,7 +117,7 @@ def _migrate_transaction(inter, entries):
             if ei.reason.unpruned:
                 # this is the only other case we know what the type really is
                 act_dict['path_type'] = 'directory'
-                act_dict['detail_type'] = newModels.PathEntry.DETAIL_PRUNED
+                act_dict['detail_type'] = new_models.PathEntry.DETAIL_PRUNED
                 act_dict['details'] = ei.reason.unpruned
 
             
