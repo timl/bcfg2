@@ -480,7 +480,7 @@ def render_history_view(request, template='clients/history.html', **kwargs):
     iquery = kwargs.get('interaction_base', Interaction.objects)
     if client:
         iquery = iquery.filter(client__exact=client)
-    iquery = iquery.select_related()
+    iquery = iquery.select_related('client')
 
     if 'orderby' in kwargs and kwargs['orderby']:
         iquery = iquery.order_by(kwargs['orderby'])
