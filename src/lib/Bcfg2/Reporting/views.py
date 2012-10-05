@@ -241,33 +241,15 @@ def common_problems(request, timestamp=None, threshold=None):
     except:
         threshold = 10
 
-    c_intr = Interaction.objects.get_interaction_per_client_ids(timestamp)
-    data_list = {}
-    [data_list.__setitem__(t_id, {}) \
-            for t_id, t_label in TYPE_CHOICES if t_id != TYPE_GOOD]
-    ldata = list(Entries_interactions.objects.filter(
-            interaction__in=c_intr).exclude(type=TYPE_GOOD).values())
-
-    entry_ids = set([x['entry_id'] for x in ldata])
-    reason_ids = set([x['reason_id'] for x in ldata])
-    for x in ldata:
-        type = x['type']
-        data_key = (x['entry_id'], x['reason_id'])
-        try:
-            data_list[type][data_key].append(x['id'])
-        except KeyError:
-            data_list[type][data_key] = [x['id']]
-
-    entries = _in_bulk(Entries, entry_ids)
-    reasons = _in_bulk(Reason, reason_ids)
-
+    current_clients = Interaction.objects.recent_ids(timestamp)
     lists = []
-    for type, type_name in TYPE_CHOICES:
-        if type == TYPE_GOOD:
-            continue
-        lists.append([type_name.lower(), [(entries[e[0][0]], reasons[e[0][1]], e[1])
-            for e in sorted(data_list[type].items(), key=lambda x: len(x[1]), reverse=True)
-            if len(e[1]) > threshold]])
+    for etype in ActionEntry, PackageEntry, PathEntry, ServiceEntry:
+        ldata = etype.objects.exclude(state=TYPE_GOOD).filter( 
+            interaction__in=current_clients).annotate(num_entries=Count('id')).filter(num_entries__gte=threshold)\
+                .order_by('-num_entries', 'name')
+        if len(ldata) > 0:
+            # Property doesn't render properly..
+            lists.append((etype.ENTRY_TYPE, ldata))
 
     return render_to_response('config_items/common.html',
                               {'lists': lists,
