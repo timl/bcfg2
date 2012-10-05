@@ -369,8 +369,8 @@ def display_summary(request, timestamp=None):
     """
     Display a summary of the bcfg2 world
     """
-    recent_data = Interaction.objects.interaction_per_client(timestamp) \
-        .select_related().all()
+    recent_data = Interaction.objects.recent(timestamp) \
+        .select_related()
     node_count = len(recent_data)
     if not timestamp:
         timestamp = datetime.now()
@@ -384,13 +384,13 @@ def display_summary(request, timestamp=None):
         if timestamp - node.timestamp > timedelta(hours=24):
             collected_data['stale'].append(node)
             # If stale check for uptime
-        if node.bad_count() > 0:
+        if node.bad_count > 0:
             collected_data['bad'].append(node)
         else:
             collected_data['clean'].append(node)
-        if node.modified_count() > 0:
+        if node.modified_count > 0:
             collected_data['modified'].append(node)
-        if node.extra_count() > 0:
+        if node.extra_count > 0:
             collected_data['extra'].append(node)
 
     # label, header_text, node_list
