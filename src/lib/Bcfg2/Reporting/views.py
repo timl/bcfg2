@@ -192,6 +192,7 @@ def config_item_list(request, item_state, timestamp=None, **kwargs):
 
     return render_to_response('config_items/listing.html',
                               {'item_list': lists,
+                               'item_state': item_state,
                                'timestamp': timestamp},
         context_instance=RequestContext(request))
 
