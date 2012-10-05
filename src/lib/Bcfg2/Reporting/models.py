@@ -383,7 +383,9 @@ class SuccessEntry(BaseEntry):
     def short_list(self):
         """Return a list of problems"""
         rv = []
-        if not self.exists:
+        if self.is_extra():
+            rv.append("Extra")
+        elif not self.exists:
             rv.append("Missing")
         return rv
 
@@ -431,6 +433,8 @@ class PackageEntry(SuccessEntry):
     def short_list(self):
         """Return a list of problems"""
         rv = super(PackageEntry, self).short_list()
+        if self.is_extra():
+            return rv
         if not self.version_problem() or not self.exists:
             return rv
         if not self.current_version:
@@ -506,6 +510,8 @@ class PathEntry(SuccessEntry):
     def short_list(self):
         """Return a list of problems"""
         rv = super(PathEntry, self).short_list()
+        if self.is_extra():
+            return rv
         if self.perms_problem():
             rv.append("File permissions")
         if self.detail_type == PathEntry.DETAIL_PRUNED:
