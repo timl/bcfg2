@@ -278,6 +278,13 @@ class FilePerms(models.Model):
     class Meta:
         unique_together = ('owner', 'group', 'perms')
 
+    def empty(self):
+        """Return true if we have no real data"""
+        if self.owner or self.group or self.perms:
+            return False
+        else:
+            return True
+
 
 class FileAcl(models.Model):
     """Placeholder"""
@@ -404,7 +411,7 @@ class PackageEntry(SuccessEntry):
     #TODO - prune
 
     def version_problem(self):
-        return self.target_version == self.current_version
+        return self.target_version != self.current_version
 
 
 class PathEntry(SuccessEntry):
@@ -451,7 +458,12 @@ class PathEntry(SuccessEntry):
     ENTRY_TYPE = r"Path"
 
     def perms_problem(self):
-        return self.target_perms == self.current_perms
+        if self.current_perms.empty():
+            return False
+        elif self.target_perms.perms != self.current_perms.perms:
+            return True
+        else:
+            return False
 
     def has_detail(self):
         return self.detail_type != PathEntry.DETAIL_UNUSED
