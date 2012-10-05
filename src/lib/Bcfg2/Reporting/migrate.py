@@ -8,11 +8,22 @@ from Bcfg2.Server.Reports.reports import models as legacy_models
 
 logger = logging.getLogger(__name__)
 
+_our_backend = None
+
 def _quote(value):
     """
     Quote a string to use as a table name or column
+
+    Newer versions and various drivers require an argument
+    https://code.djangoproject.com/ticket/13630
     """
-    return backend.DatabaseOperations().quote_name(value)
+    global _our_backend
+    if not _our_backend:
+        try:
+            _our_backend = backend.DatabaseOperations(connection)
+        except TypeError:
+            _our_backend = backend.DatabaseOperations(connection)
+    return _our_backend.quote_name(value)
 
 
 @transaction.commit_on_success
