@@ -14,7 +14,7 @@ from django.shortcuts import render_to_response, get_object_or_404
 from django.core.urlresolvers import \
         resolve, reverse, Resolver404, NoReverseMatch
 from django.db import connection, DatabaseError
-from django.db.models import Q
+from django.db.models import Q, Count
 
 from Bcfg2.Reporting.models import *
 
@@ -137,7 +137,7 @@ def config_item(request, pk, entry_type, interaction=None):
     """
     Display a single entry.
 
-    Dispalys information about a single entry.
+    Displays information about a single entry.
 
     """
     try:
@@ -174,68 +174,49 @@ def config_item(request, pk, entry_type, interaction=None):
 
 
 @timeview
-def config_item_list(request, type, timestamp=None, **kwargs):
+def config_item_list(request, item_state, timestamp=None, **kwargs):
     """Render a listing of affected elements"""
-    mod_or_bad = type.lower()
-    type = convert_entry_type_to_id(type)
-    if type < 0:
+    state = convert_entry_type_to_id(item_state.lower())
+    if state < 0:
         raise Http404
 
-    current_clients = Interaction.objects.interaction_per_client(timestamp)
+    current_clients = Interaction.objects.recent(timestamp)
     current_clients = [q['id'] for q in _handle_filters(current_clients, **kwargs).values('id')]
 
-    ldata = list(Entries_interactions.objects.filter(
-            interaction__in=current_clients, type=type).values())
-    entry_ids = set([x['entry_id'] for x in ldata])
-    reason_ids = set([x['reason_id'] for x in ldata])
-
-    entries = _in_bulk(Entries, entry_ids)
-    reasons = _in_bulk(Reason, reason_ids)
-
-    kind_list = {}
-    [kind_list.__setitem__(kind, {}) for kind in set([e.kind for e in entries.values()])]
-    for x in ldata:
-        kind = entries[x['entry_id']].kind
-        data_key = (x['entry_id'], x['reason_id'])
-        try:
-            kind_list[kind][data_key].append(x['id'])
-        except KeyError:
-            kind_list[kind][data_key] = [x['id']]
-
     lists = []
-    for kind in kind_list.keys():
-        lists.append((kind, [(entries[e[0][0]], reasons[e[0][1]], e[1])
-            for e in sorted(kind_list[kind].iteritems(), key=lambda x: entries[x[0][0]].name)]))
+    for etype in ActionEntry, PackageEntry, PathEntry, ServiceEntry:
+        ldata = etype.objects.filter(state=state, interaction__in=current_clients).annotate(num_entries=Count('id'))
+        if len(ldata) > 0:
+            # Property doesn't render properly..
+            lists.append((etype.ENTRY_TYPE, ldata))
 
     return render_to_response('config_items/listing.html',
                               {'item_list': lists,
-                               'mod_or_bad': mod_or_bad,
                                'timestamp': timestamp},
         context_instance=RequestContext(request))
 
 
 @timeview
-def entry_status(request, eid, timestamp=None, **kwargs):
-    """Render a listing of affected elements"""
-    entry = get_object_or_404(Entries, pk=eid)
+def entry_status(request, entry_type, pk, timestamp=None, **kwargs):
+    """Render a listing of affected elements by type and name"""
+    try:
+        cls = BaseEntry.entry_from_name(entry_type)
+    except ValueError:
+        # TODO - handle this
+        raise
+    item = get_object_or_404(cls, pk=pk)
 
-    current_clients = Interaction.objects.interaction_per_client(timestamp)
-    inters = {}
-    [inters.__setitem__(i.id, i) \
-        for i in _handle_filters(current_clients, **kwargs).select_related('client')]
+    current_clients = Interaction.objects.recent(timestamp)
+    current_clients = [i['pk'] for i in _handle_filters(current_clients, **kwargs).values('pk')]
 
-    eis = Entries_interactions.objects.filter(
-            interaction__in=inters.keys(), entry=entry)
-
-    reasons = _in_bulk(Reason, set([x.reason_id for x in eis]))
-
-    item_data = []
-    for ei in eis:
-        item_data.append((ei, inters[ei.interaction_id], reasons[ei.reason_id]))
-
+    # There is no good way to do this...
+    items = []
+    for it in cls.objects.filter(interaction__in=current_clients, name=item.name).distinct("id"):
+        items.append((it, it.interaction_set.filter(pk__in=current_clients).order_by('client__name').select_related()))
+    
     return render_to_response('config_items/entry_status.html',
-                              {'entry': entry,
-                               'item_data': item_data,
+                              {'entry': item,
+                               'items': items,
                                'timestamp': timestamp},
         context_instance=RequestContext(request))
 

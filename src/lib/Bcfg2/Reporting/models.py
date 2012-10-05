@@ -380,6 +380,13 @@ class SuccessEntry(BaseEntry):
         abstract = True
         ordering = ('state', 'name')
 
+    def short_list(self):
+        """Return a list of problems"""
+        rv = []
+        if not self.exists:
+            rv.append("Missing")
+        return rv
+
 
 class FailureEntry(BaseEntry):
     """Represents objects that failed to bind"""
@@ -411,7 +418,26 @@ class PackageEntry(SuccessEntry):
     #TODO - prune
 
     def version_problem(self):
-        return self.target_version != self.current_version
+        """Check for a version problem."""
+        if not self.current_version:
+            return True
+        if self.target_version != self.current_version:
+            return True
+        elif self.target_version == 'auto':
+            return True
+        else:
+            return False
+
+    def short_list(self):
+        """Return a list of problems"""
+        rv = super(PackageEntry, self).short_list()
+        if not self.version_problem() or not self.exists:
+            return rv
+        if not self.current_version:
+            rv.append("Missing")
+        else:
+            rv.append("Wrong version")
+        return rv
 
 
 class PathEntry(SuccessEntry):
@@ -477,6 +503,20 @@ class PathEntry(SuccessEntry):
     def is_sensitive(self):
         return self.detail_type == PathEntry.DETAIL_SENSITIVE
 
+    def short_list(self):
+        """Return a list of problems"""
+        rv = super(PathEntry, self).short_list()
+        if self.perms_problem():
+            rv.append("File permissions")
+        if self.detail_type == PathEntry.DETAIL_PRUNED:
+            rv.append("Directory has extra files")
+        elif self.detail_type != PathEntry.DETAIL_UNUSED:
+            rv.append("Incorrect data")
+        if hasattr(self, 'linkentry') and \
+                self.linkentry.target_path != self.linkentry.current_path:
+            rv.append("Incorrect target")
+        return rv
+
 
 class LinkEntry(PathEntry):
     """Sym/Hard Link types"""
@@ -513,5 +553,12 @@ class ServiceEntry(SuccessEntry):
 
     def status_problem(self):
         return self.target_status != self.current_status
+
+    def short_list(self):
+        """Return a list of problems"""
+        rv = super(ServiceEntry, self).short_list()
+        if self.status_problem():
+            rv.append("Incorrect status")
+        return rv
 
 

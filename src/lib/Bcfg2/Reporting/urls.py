@@ -16,10 +16,9 @@ urlpatterns = patterns('Bcfg2.Reporting',
     url(r'^manage/?$', 'views.client_manage', name='reports_client_manage'),
     url(r'^client/(?P<hostname>[^/]+)/(?P<pk>\d+)/?$', 'views.client_detail', name='reports_client_detail_pk'),
     url(r'^client/(?P<hostname>[^/]+)/?$', 'views.client_detail', name='reports_client_detail'),
-    url(r'^elements/(?P<entry_type>\w+)/(?P<pk>\d+)/(?P<interaction>\d+)?/?$', 'views.config_item', name='reports_item'),
-    url(r'^elements/(?P<entry_type>\w+)/(?P<pk>\d+)/?$', 'views.config_item', name='reports_item'),
-    #url(r'^elements/(?P<entry_type>\w+)/(?P<pk>\d+)(/(?P<interaction>\d+))?/?$', 'views.config_item', name='reports_item'),
-    url(r'^entry/(?P<eid>\w+)/?$', 'views.entry_status', name='reports_entry'),
+    url(r'^element/(?P<entry_type>\w+)/(?P<pk>\d+)/(?P<interaction>\d+)?/?$', 'views.config_item', name='reports_item'),
+    url(r'^element/(?P<entry_type>\w+)/(?P<pk>\d+)/?$', 'views.config_item', name='reports_item'),
+    url(r'^entry/(?P<entry_type>\w+)/(?P<pk>\w+)/?$', 'views.entry_status', name='reports_entry'),
 )
 
 urlpatterns += patterns('Bcfg2.Reporting',
@@ -35,7 +34,7 @@ urlpatterns += patterns('Bcfg2.Reporting',
         (r'^grid/?$', 'views.client_index', None, 'reports_grid_view'),
         (r'^detailed/?$',
             'views.client_detailed_list', None, 'reports_detailed_list'),
-        (r'^elements/(?P<type>\w+)/?$', 'views.config_item_list', None, 'reports_item_list'),
+        (r'^elements/(?P<item_state>\w+)/?$', 'views.config_item_list', None, 'reports_item_list'),
 )))
 
 urlpatterns += patterns('Bcfg2.Reporting',

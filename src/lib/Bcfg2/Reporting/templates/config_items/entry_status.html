@@ -6,21 +6,23 @@
 {% block extra_header_info %}
 {% endblock%}
 
-{% block pagebanner %}{{ entry.kind }} entry {{ entry.name }} status{% endblock %}
+{% block pagebanner %}{{ entry.entry_type }} entry {{ entry.name }} status{% endblock %}
 
 {% block content %}
 {% filter_navigator %}
-{% if item_data %}
+{% if items %}
     <div class='entry_list'>
       <table class='entry_list'>
           <tr style='text-align: left' ><th>Name</th><th>Timestamp</th><th>State</th><th>Reason</th></tr>
-        {% for ei, inter, reason in item_data %}
+        {% for item, inters in items %}
+          {% for inter in inters %}
           <tr class='{% cycle listview,listview_alt %}'>
-            <td><a href='{% url Bcfg2.Reporting.views.client_detail hostname=inter.client.name, pk=inter.id %}'>{{ inter.client.name }}</a></td>
-            <td style='white-space: nowrap'><a href='{% url Bcfg2.Server.Reports.reports.views.client_detail hostname=inter.client.name, pk=inter.id %}'>{{ inter.timestamp|date:"Y-m-d\&\n\b\s\p\;H:i"|safe }}</a></td>
-            <td>{{ ei.get_type_display }}</td>
-            <td style='white-space: nowrap'><a href="{% url reports_item type=ei.get_type_display pk=ei.pk %}">{{ reason.short_list|join:"," }}</a></td>
+            <td><a href='{% url reports_client_detail hostname=inter.client.name %}'>{{inter.client.name}}</a></td>
+            <td><a href='{% url reports_client_detail_pk hostname=inter.client.name, pk=inter.pk %}'>{{inter.timestamp|date:"Y-m-d\&\n\b\s\p\;H:i"|safe}}</a></td>
+            <td>{{ item.get_state_display }}</td>
+            <td style='white-space: nowrap'><a href="{% url reports_item entry_type=item.class_name pk=item.pk %}">({{item.pk}}) {{item.short_list|join:","}}</a></td>
           </tr>
+          {% endfor %}
         {% endfor %}
       </table>
     </div>
