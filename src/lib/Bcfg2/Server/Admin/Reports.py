@@ -15,7 +15,7 @@ from Bcfg2 import settings
 
 # Load django and reports stuff _after_ we know we can load settings
 from django.core import management
-from Bcfg2.Server.Reports.utils import *
+from Bcfg2.Reporting.utils import *
 
 project_directory = os.path.dirname(settings.__file__)
 project_name = os.path.basename(project_directory)
