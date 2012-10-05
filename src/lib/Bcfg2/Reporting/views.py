@@ -422,17 +422,16 @@ def display_summary(request, timestamp=None):
 
 @timeview
 def display_timing(request, timestamp=None):
+    perfs = Performance.objects.filter(interaction__in=Interaction.objects.recent_ids(timestamp))\
+        .select_related('interaction__client')
+
     mdict = dict()
-    inters = Interaction.objects.interaction_per_client(timestamp).select_related().all()
-    [mdict.__setitem__(inter, {'name': inter.client.name}) \
-        for inter in inters]
-    for metric in Performance.objects.filter(interaction__in=list(mdict.keys())).all():
-        for i in metric.interaction.all():
-            try:
-                mdict[i][metric.metric] = metric.value
-            except KeyError:
-                #In the unlikely event two interactions share a metric, ignore it
-                pass
+    for perf in perfs:
+        client = perf.interaction.client.name
+        if client not in mdict:
+            mdict[client] = { 'name': client }
+        mdict[client][perf.metric] = perf.value
+
     return render_to_response('displays/timing.html',
                               {'metrics': list(mdict.values()),
                                'timestamp': timestamp},
