@@ -79,6 +79,11 @@ class Reports(Bcfg2.Server.Admin.Mode):
 
     def __init__(self, setup):
         Bcfg2.Server.Admin.Mode.__init__(self, setup)
+        try:
+            import south
+        except ImportError:
+            print "Django south is required for Reporting"
+            raise SystemExit(-3)
 
     def __call__(self, args):
         Bcfg2.Server.Admin.Mode.__call__(self, args)
