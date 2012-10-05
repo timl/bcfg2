@@ -61,37 +61,41 @@ span.history_links a {
     {% endif %}
   </table>
 
-  {% if interaction.groups.count %}
+  {% for group in interaction.groups.all %}
+  {% if forloop.first %}
   <div class='entry_list'>
     <div class='entry_list_head' onclick='javascript:toggleMe("groups_table");'>
       <h3>Group membership</h3>
       <div class='entry_expand_tab' id='plusminus_groups_table'>[+]</div>
     </div>
     <table id='groups_table' class='entry_list' style='display: none'>
-      {% for group in interaction.groups.all %}
+  {% endif %}
         <tr class='{% cycle listview,listview_alt %}'>
           <td class='entry_list_type'>{{group}}</td>
         </tr>
-      {% endfor %}
+  {% if forloop.last %}
     </table>
   </div>
   {% endif %}
+  {% endfor %}
 
-  {% if interaction.bundles.count %}
+  {% for bundle in interaction.bundles.all %}
+  {% if forloop.first %}
   <div class='entry_list'>
     <div class='entry_list_head' onclick='javascript:toggleMe("bundles_table");'>
       <h3>Bundle membership</h3>
       <div class='entry_expand_tab' id='plusminus_bundless_table'>[+]</div>
     </div>
     <table id='bundles_table' class='entry_list' style='display: none'>
-      {% for bundle in interaction.bundles.all %}
+  {% endif %}
         <tr class='{% cycle listview,listview_alt %}'>
           <td class='entry_list_type'>{{bundle}}</td>
         </tr>
-      {% endfor %}
+  {% if forloop.last %}
     </table>
   </div>
   {% endif %}
+  {% endfor %}
 
   {% for entry_type, entry_list in entry_types.items %}
   {% if entry_list %}
@@ -125,9 +129,6 @@ span.history_links a {
           <td class='entry_list_type'>{{failure.entry_type}}</td>
           <td><a href="{% url reports_item failure.class_name failure.pk interaction.pk %}">
               {{failure.name}}</a></td>
-{% comment %}
-          <td>{{failure.message}}</td>
-{% endcomment %}
         </tr>
       {% endfor %}
     </table>
