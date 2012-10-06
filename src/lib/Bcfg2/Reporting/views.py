@@ -185,7 +185,8 @@ def config_item_list(request, item_state, timestamp=None, **kwargs):
 
     lists = []
     for etype in ActionEntry, PackageEntry, PathEntry, ServiceEntry:
-        ldata = etype.objects.filter(state=state, interaction__in=current_clients).annotate(num_entries=Count('id'))
+        ldata = etype.objects.filter(state=state, interaction__in=current_clients)\
+            .annotate(num_entries=Count('id')).select_related('linkentry', 'target_perms', 'current_perms')
         if len(ldata) > 0:
             # Property doesn't render properly..
             lists.append((etype.ENTRY_TYPE, ldata))
@@ -212,8 +213,8 @@ def entry_status(request, entry_type, pk, timestamp=None, **kwargs):
 
     # There is no good way to do this...
     items = []
-    for it in cls.objects.filter(interaction__in=current_clients, name=item.name).distinct("id"):
-        items.append((it, it.interaction_set.filter(pk__in=current_clients).order_by('client__name').select_related()))
+    for it in cls.objects.filter(interaction__in=current_clients, name=item.name).distinct("id").select_related():
+        items.append((it, it.interaction_set.filter(pk__in=current_clients).order_by('client__name').select_related('client')))
     
     return render_to_response('config_items/entry_status.html',
                               {'entry': item,
