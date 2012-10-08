@@ -200,16 +200,22 @@ class Interaction(models.Model):
         return self.total_count - self.good_count
 
     def bad(self):
-        return []
-        #return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_BAD)
+        rv = []
+        for entry in ('actions', 'packages', 'paths', 'services'):
+            rv.extend(getattr(self, entry).filter(state=TYPE_BAD))
+        return rv
 
     def modified(self):
-        return []
-        #return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_MODIFIED)
+        rv = []
+        for entry in ('actions', 'packages', 'paths', 'services'):
+            rv.extend(getattr(self, entry).filter(state=TYPE_MODIFIED))
+        return rv
 
     def extra(self):
-        return []
-        #return Entries_interactions.objects.select_related().filter(interaction=self, type=TYPE_EXTRA)
+        rv = []
+        for entry in ('actions', 'packages', 'paths', 'services'):
+            rv.extend(getattr(self, entry).filter(state=TYPE_EXTRA))
+        return rv
 
     class Meta:
         get_latest_by = 'timestamp'

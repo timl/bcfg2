@@ -220,7 +220,10 @@ class DjangoORM(StorageBase):
         for entry_type in updates.keys():
             getattr(inter, entry_type).add(*updates[entry_type])
 
-        # TODO - performance metrics
+        # performance metrics
+        for times in stats.findall('OpStamps'):
+            for metric, value in list(times.items()):
+                Performance(interaction=inter, metric=metric, value=value).save()
 
             
     def import_interaction(self, interaction):
