@@ -1,11 +1,11 @@
-import Bcfg2.Server.Reports.settings
+import Bcfg2.settings
 
 from django.db import connection
 import django.core.management
+import sys
 import logging
 import traceback
-from Bcfg2.Server.Reports.reports.models import InternalDatabaseVersion, \
-                TYPE_BAD, TYPE_MODIFIED, TYPE_EXTRA
+from Bcfg2.Server.models import InternalDatabaseVersion
 logger = logging.getLogger('Bcfg2.Server.Reports.UpdateFix')
 
 
@@ -62,9 +62,9 @@ def _interactions_constraint_or_idx():
 def _populate_interaction_entry_counts():
     '''Populate up the type totals for the interaction table'''
     cursor = connection.cursor()
-    count_field = {TYPE_BAD: 'bad_entries',
-                   TYPE_MODIFIED: 'modified_entries',
-                   TYPE_EXTRA: 'extra_entries'}
+    count_field = {1: 'bad_entries',
+                   2: 'modified_entries',
+                   3: 'extra_entries'}
 
     for type in list(count_field.keys()):
         cursor.execute("select count(type), interaction_id " +
@@ -130,57 +130,22 @@ def rollupdate(current_version):
         return None
 
 
-def dosync():
-    """Function to do the syncronisation for the models"""
-    # try to detect if it's a fresh new database
-    try:
-        cursor = connection.cursor()
-        # If this table goes missing then don't forget to change it to the new one
-        cursor.execute("Select * from reports_client")
-        # if we get here with no error then the database has existing tables
-        fresh = False
-    except:
-        logger.debug("there was an error while detecting the freshness of the database")
-        #we should get here if the database is new
-        fresh = True
-
-    # ensure database connection are close, so that the management can do it's job right    
-    try:
-        cursor.close()
-        connection.close()
-    except:
-        # ignore any errors from missing/invalid dbs
-        pass
-    # Do the syncdb according to the django version
-    if "call_command" in dir(django.core.management):
-        # this is available since django 1.0 alpha.
-        # not yet tested for full functionnality
-        django.core.management.call_command("syncdb", interactive=False, verbosity=0)
-        if fresh:
-            django.core.management.call_command("loaddata", 'initial_version.xml', verbosity=0)
-    elif "syncdb" in dir(django.core.management):
-        # this exist only for django 0.96.*
-        django.core.management.syncdb(interactive=False, verbosity=0)
-        if fresh:
-            logger.debug("loading the initial_version fixtures")
-            django.core.management.load_data(fixture_labels=['initial_version'], verbosity=0)
-    else:
-        logger.warning("Don't forget to run syncdb")
-
-
 def update_database():
     ''' methode to search where we are in the revision of the database models and update them '''
     try:
         logger.debug("Running upgrade of models to the new one")
-        dosync()
+        django.core.management.call_command("syncdb", interactive=False, verbosity=0)
         know_version = InternalDatabaseVersion.objects.order_by('-version')
         if not know_version:
             logger.debug("No version, creating initial version")
-            know_version = InternalDatabaseVersion.objects.create(version=0)
+            know_version = InternalDatabaseVersion.objects.create(version=lastversion)
         else:
             know_version = know_version[0]
         logger.debug("Presently at %s" % know_version)
-        if know_version.version < lastversion:
+        if know_version.version > 13000:
+            # SchemaUpdater stuff
+            return
+        elif know_version.version < lastversion:
             new_version = rollupdate(know_version.version)
             if new_version:
                 logger.debug("upgraded to %s" % new_version)
