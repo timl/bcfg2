@@ -280,32 +280,37 @@ class DjangoORM(StorageBase):
             self.logger.error("%s Inconsistency: Multiple entries for %s." %
                 (self.__class__.__name__, client))
             raise PluginExecutionError
-        result = c_inst.current_interaction.bad().filter(entry__kind=e_type,
-                                                         entry__name=e_name)
+        try:
+            cls = BaseEntry.entry_from_name(e_type + "Entry")
+            result = cls.objects.filter(name=e_name, state=TYPE_BAD,
+                interaction=c_inst.current_interaction)
+        except ValueError:
+            self.logger.error("Unhandled type %s" % e_type)
+            raise PluginExecutionError
         if not result:
             raise PluginExecutionError
         entry = result[0]
         ret = []
-        data = ('owner', 'group', 'perms')
-        for t in data:
-            if getattr(entry.reason, "current_%s" % t) == '':
-                ret.append(getattr(entry.reason, t))
+        for p_entry in ('owner', 'group', 'perms'):
+            this_entry = getattr(entry.current_perms, p_entry)
+            if this_entry == '':
+                ret.append(getattr(entry.target_perms, p_entry))
             else:
-                ret.append(getattr(entry.reason, "current_%s" % t))
-        if entry.reason.is_sensitive:
-            raise PluginExecutionError
-        elif len(entry.reason.unpruned) != 0:
-            ret.append('\n'.join(entry.reason.unpruned))
-        elif entry.reason.current_diff != '':
-            if entry.reason.is_binary:
-                ret.append(b64decode(entry.reason.current_diff))
-            else:
+                ret.append(this_entry)
+        if entry.entry_type == 'Path':
+            if entry.is_sensitive():
+                raise PluginExecutionError
+            elif entry.detail_type == PathEntry.DETAIL_PRUNED:
+                ret.append('\n'.join(entry.details))
+            elif entry.is_binary():
+                ret.append(b64decode(entry.details))
+            elif entry.is_diff():
                 ret.append('\n'.join(difflib.restore(\
-                    entry.reason.current_diff.split('\n'), 1)))
-        elif entry.reason.is_binary:
-            # If len is zero the object was too large to store
-            raise PluginExecutionError
-        else:
-            ret.append(None)
+                    entry.details.split('\n'), 1)))
+            elif entry.is_too_large():
+                # If len is zero the object was too large to store
+                raise PluginExecutionError
+            else:
+                ret.append(None)
         return ret
 
