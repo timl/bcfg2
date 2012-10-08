@@ -239,21 +239,13 @@ class DjangoORM(StorageBase):
         settings.read_config(repo=self.setup['repo'])
 
         # verify our database schema
-        # TODO
-        #try:
-        #    from Bcfg2.Server.SchemaUpdater import update_database, UpdaterError
-        #    try:
-        #        update_database()
-        #    except UpdaterError:
-        #        self.logger.error("Failed to update database schema: %s" % \
-        #            traceback.format_exc().splitlines()[-1])
-        #        raise StorageError
-        #except StorageError:
-        #    raise
-        #except Exception:
-        #    self.logger.error("Failed to update database schema: %s" % \
-        #        traceback.format_exc().splitlines()[-1])
-        #    raise StorageError
+        try:
+            management.call_command("syncdb", verbosity=vrb)
+            management.call_command("migrate", verbosity=vrb)
+        except:
+            self.logger.error("Failed to update database schema: %s" % \
+                traceback.format_exc().splitlines()[-1])
+            raise StorageError
 
     def GetExtra(self, client):
         """Fetch extra entries for a client"""
