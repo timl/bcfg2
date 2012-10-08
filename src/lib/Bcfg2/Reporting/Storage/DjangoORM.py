@@ -13,6 +13,8 @@ from Bcfg2 import settings
 
 from Bcfg2.Compat import md5
 from Bcfg2.Reporting.Storage.base import StorageBase, StorageError
+from Bcfg2.Server.Plugin.exceptions import PluginExecutionError
+from django.core import management
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.core.cache import cache
 from django.db import transaction
@@ -243,8 +245,12 @@ class DjangoORM(StorageBase):
 
         # verify our database schema
         try:
-            management.call_command("syncdb", verbosity=vrb)
-            management.call_command("migrate", verbosity=vrb)
+            if self.setup['verbose'] or self.setup['debug']:
+                vrb = 2
+            else:
+                vrb = 0
+            management.call_command("syncdb", verbosity=vrb, interactive=False)
+            management.call_command("migrate", verbosity=vrb, interactive=False)
         except:
             self.logger.error("Failed to update database schema: %s" % \
                 traceback.format_exc().splitlines()[-1])
@@ -254,7 +260,7 @@ class DjangoORM(StorageBase):
         """Fetch extra entries for a client"""
         try:
             c_inst = Client.objects.get(name=client)
-            return [(a.entry.kind, a.entry.name) for a in
+            return [(ent.entry_type, ent.name) for ent in
                     c_inst.current_interaction.extra()]
         except ObjectDoesNotExist:
             return []
@@ -269,15 +275,15 @@ class DjangoORM(StorageBase):
             c_inst = Client.objects.get(name=client)
         except ObjectDoesNotExist:
             self.logger.error("Unknown client: %s" % client)
-            raise Bcfg2.Server.Plugin.PluginExecutionError
+            raise PluginExecutionError
         except MultipleObjectsReturned:
             self.logger.error("%s Inconsistency: Multiple entries for %s." %
                 (self.__class__.__name__, client))
-            raise Bcfg2.Server.Plugin.PluginExecutionError
+            raise PluginExecutionError
         result = c_inst.current_interaction.bad().filter(entry__kind=e_type,
                                                          entry__name=e_name)
         if not result:
-            raise Bcfg2.Server.Plugin.PluginExecutionError
+            raise PluginExecutionError
         entry = result[0]
         ret = []
         data = ('owner', 'group', 'perms')
@@ -287,7 +293,7 @@ class DjangoORM(StorageBase):
             else:
                 ret.append(getattr(entry.reason, "current_%s" % t))
         if entry.reason.is_sensitive:
-            raise Bcfg2.Server.Plugin.PluginExecutionError
+            raise PluginExecutionError
         elif len(entry.reason.unpruned) != 0:
             ret.append('\n'.join(entry.reason.unpruned))
         elif entry.reason.current_diff != '':
@@ -298,7 +304,7 @@ class DjangoORM(StorageBase):
                     entry.reason.current_diff.split('\n'), 1)))
         elif entry.reason.is_binary:
             # If len is zero the object was too large to store
-            raise Bcfg2.Server.Plugin.PluginExecutionError
+            raise PluginExecutionError
         else:
             ret.append(None)
         return ret
