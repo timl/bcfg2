@@ -513,6 +513,12 @@ class PathEntry(SuccessEntry):
     def is_sensitive(self):
         return self.detail_type == PathEntry.DETAIL_SENSITIVE
 
+    def is_binary(self):
+        return self.detail_type == PathEntry.DETAIL_BINARY
+
+    def is_too_large(self):
+        return self.detail_type == PathEntry.DETAIL_SIZE_LIMIT
+
     def short_list(self):
         """Return a list of problems"""
         rv = super(PathEntry, self).short_list()
